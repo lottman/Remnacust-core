@@ -1,0 +1,163 @@
+package xerahttp
+
+import (
+	"context"
+	"crypto/rand"
+	"math"
+	"math/big"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	"github.com/xtls/xray-core/common"
+	"github.com/xtls/xray-core/common/errors"
+)
+
+type XmuxConn interface {
+	IsClosed() bool
+}
+
+type XmuxClient struct {
+	XmuxConn     XmuxConn
+	Running      atomic.Int32
+	leftUsage    int32
+	LeftRequests atomic.Int32
+	UnreusableAt time.Time
+	NotUsed      atomic.Bool
+	closeOnce    sync.Once
+	idleSince    atomic.Int64
+}
+
+func (c *XmuxClient) AddRunning() {
+	c.Running.Add(1)
+	c.idleSince.Store(0)
+}
+
+func (c *XmuxClient) DoneRunning() {
+	if c.Running.Add(-1) == 0 {
+		c.idleSince.Store(time.Now().UnixNano())
+	}
+	c.maybeClose()
+}
+
+func (c *XmuxClient) maybeClose() {
+	if c.NotUsed.Load() && c.Running.Load() <= 0 {
+		c.closeOnce.Do(func() { common.Close(c.XmuxConn) })
+	}
+}
+
+type XmuxManager struct {
+	xmuxConfig  *XmuxConfig
+	concurrency int32
+	connections int32
+	newConnFunc func() XmuxConn
+	xmuxClients []*XmuxClient
+	lastUsed    time.Time
+}
+
+func NewXmuxManager(xmuxConfig *XmuxConfig, newConnFunc func() XmuxConn) *XmuxManager {
+	if xmuxConfig == nil {
+		xmuxConfig = &XmuxConfig{}
+	}
+	return &XmuxManager{
+		xmuxConfig:  xmuxConfig,
+		concurrency: xmuxConfig.GetNormalizedMaxConcurrency().rand(),
+		connections: xmuxConfig.GetNormalizedMaxConnections().rand(),
+		newConnFunc: newConnFunc,
+		xmuxClients: make([]*XmuxClient, 0),
+	}
+}
+
+func (m *XmuxManager) newXmuxClient() *XmuxClient {
+	xmuxClient := &XmuxClient{
+		XmuxConn:  m.newConnFunc(),
+		leftUsage: -1,
+	}
+	if x := m.xmuxConfig.GetNormalizedCMaxReuseTimes().rand(); x > 0 {
+		xmuxClient.leftUsage = x - 1
+	}
+	xmuxClient.LeftRequests.Store(math.MaxInt32)
+	if x := m.xmuxConfig.GetNormalizedHMaxRequestTimes().rand(); x > 0 {
+		xmuxClient.LeftRequests.Store(x)
+	}
+	if x := m.xmuxConfig.GetNormalizedHMaxReusableSecs().rand(); x > 0 {
+		xmuxClient.UnreusableAt = time.Now().Add(time.Duration(x) * time.Second)
+	}
+	m.xmuxClients = append(m.xmuxClients, xmuxClient)
+	xmuxClient.idleSince.Store(time.Now().UnixNano())
+	return xmuxClient
+}
+
+func (m *XmuxManager) pruneIdle(now time.Time) {
+	minimum := max(1, int(m.connections))
+	for i := 0; i < len(m.xmuxClients) && len(m.xmuxClients) > minimum; {
+		client := m.xmuxClients[i]
+		idle := client.idleSince.Load()
+		if client.Running.Load() == 0 && idle != 0 && now.Sub(time.Unix(0, idle)) >= 30*time.Second {
+			client.NotUsed.Store(true)
+			client.maybeClose()
+			copy(m.xmuxClients[i:], m.xmuxClients[i+1:])
+			m.xmuxClients[len(m.xmuxClients)-1] = nil
+			m.xmuxClients = m.xmuxClients[:len(m.xmuxClients)-1]
+		} else {
+			i++
+		}
+	}
+}
+
+func (m *XmuxManager) GetXmuxClient(ctx context.Context) *XmuxClient {
+	m.pruneIdle(time.Now())
+	for i := 0; i < len(m.xmuxClients); {
+		xmuxClient := m.xmuxClients[i]
+		if xmuxClient.XmuxConn.IsClosed() ||
+			xmuxClient.leftUsage == 0 ||
+			xmuxClient.LeftRequests.Load() <= 0 ||
+			(xmuxClient.UnreusableAt != time.Time{} && time.Now().After(xmuxClient.UnreusableAt)) {
+			errors.LogDebug(ctx, "XMUX: removing xmuxClient, IsClosed() = ", xmuxClient.XmuxConn.IsClosed(),
+				", Running = ", xmuxClient.Running.Load(),
+				", leftUsage = ", xmuxClient.leftUsage,
+				", LeftRequests = ", xmuxClient.LeftRequests.Load(),
+				", UnreusableAt = ", xmuxClient.UnreusableAt)
+			xmuxClient.NotUsed.Store(true)
+			xmuxClient.maybeClose()
+			copy(m.xmuxClients[i:], m.xmuxClients[i+1:])
+			m.xmuxClients[len(m.xmuxClients)-1] = nil
+			m.xmuxClients = m.xmuxClients[:len(m.xmuxClients)-1]
+		} else {
+			i++
+		}
+	}
+
+	if len(m.xmuxClients) == 0 {
+		errors.LogDebug(ctx, "XMUX: creating xmuxClient because xmuxClients is empty")
+		return m.newXmuxClient()
+	}
+
+	if m.connections > 0 && len(m.xmuxClients) < int(m.connections) {
+		errors.LogDebug(ctx, "XMUX: creating xmuxClient because maxConnections was not hit, xmuxClients = ", len(m.xmuxClients))
+		return m.newXmuxClient()
+	}
+
+	xmuxClients := make([]*XmuxClient, 0)
+	if m.concurrency > 0 {
+		for _, xmuxClient := range m.xmuxClients {
+			if xmuxClient.Running.Load() < m.concurrency {
+				xmuxClients = append(xmuxClients, xmuxClient)
+			}
+		}
+	} else {
+		xmuxClients = m.xmuxClients
+	}
+
+	if len(xmuxClients) == 0 {
+		errors.LogDebug(ctx, "XMUX: creating xmuxClient because maxConcurrency was hit, xmuxClients = ", len(m.xmuxClients))
+		return m.newXmuxClient()
+	}
+
+	i, _ := rand.Int(rand.Reader, big.NewInt(int64(len(xmuxClients))))
+	xmuxClient := xmuxClients[i.Int64()]
+	if xmuxClient.leftUsage > 0 {
+		xmuxClient.leftUsage -= 1
+	}
+	return xmuxClient
+}

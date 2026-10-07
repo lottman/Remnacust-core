@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package xray.proxy.olcrtc;
+option go_package = "github.com/xtls/xray-core/proxy/olcrtc";
+
+message Config {
+  string provider = 1;
+  string transport = 2;
+  string room_id = 3 [json_name = "roomId"];
+  string crypto_key = 4 [json_name = "cryptoKey"];
+  string auth_token = 5 [json_name = "authToken"];
+  string device_id = 6 [json_name = "deviceId"];
+  string dns_server = 7 [json_name = "dnsServer"];
+}

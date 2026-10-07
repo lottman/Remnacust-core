@@ -1,0 +1,21 @@
+{
+  "project": "Remnacust Xray",
+  "upstreamRepository": "https://github.com/XTLS/Xray-core",
+  "upstreamVersion": "v26.9.30",
+  "upstreamCommit": "b26a91de4f3294e26a0ad0a970b81a386a41f789",
+  "previousUpstreamVersion": "v26.7.28",
+  "previousUpstreamCommit": "5ca6f4b7d4dc20a881d4330e498892697627ec0c",
+  "upstreamPrerelease": true,
+  "customCapabilities": [
+    "XERA-HTTP",
+    "xera-host-policy-v2",
+    "xera-destination-rules-v1",
+    "authenticated device connection revocation",
+    "standalone olcRTC core support"
+  ],
+  "compatibility": [
+    "legacy finalmask.quicParams.udpHop",
+    "legacy TUN autoSystemDNS"
+  ],
+  "version": "1.1.1"
+}

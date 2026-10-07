@@ -1,0 +1,58 @@
+# Remnacust Core
+
+Форк Xray-core для Remnacust. Обслуживает клиентские соединения, выполняет маршрутизацию и применяет политики хостов, тегов и устройств. Здесь также находятся исходники редактора и браузерной проверки конфигураций.
+
+**Версия 1.1.1** · **Основа: Xray-core 26.9.30** · [Панель](https://github.com/lottman/Remnacust-panel) · [Нода](https://github.com/lottman/Remnacust-node)
+
+Имя Go-модуля `github.com/xtls/xray-core` сохранено для совместимости импортов. Исходники зависимости olcRTC находятся в `vendor/olcrtc`; отдельная загрузка из файлового менеджера не нужна.
+
+## Сборка
+
+Нужен Go 1.27.
+
+```bash
+git clone https://github.com/lottman/Remnacust-core.git
+cd Remnacust-core/xray
+mkdir -p bin
+CGO_ENABLED=0 go build -trimpath \
+  -ldflags '-s -w -X github.com/xtls/xray-core/core.build=Remnacust-1.1.1' \
+  -o bin/xray ./main
+./bin/xray version
+```
+
+В Windows задайте `$env:CGO_ENABLED='0'` и укажите `bin/xray.exe`. Готовая установка ноды через [установщик](https://github.com/lottman/Remnacust-installer) собирает ядро вместе с агентом.
+
+## Проверка и запуск
+
+```bash
+./bin/xray run -test -config /path/to/config.json
+./bin/xray run -config /path/to/config.json
+```
+
+Первая команда проверяет конфигурацию и завершает работу. Она не проверяет внешнюю доступность портов, DNS и сертификатов. Если ядром управляет агент, меняйте рабочий профиль в панели: агент формирует runtime-конфигурацию.
+
+Для расширенных квот, скорости и устройств нужны совместимые версии панели, агента и ядра. Замена только бинарного файла не обновляет агент.
+
+## Редактор панели
+
+Клонируйте `Remnacust-panel` рядом с этим репозиторием. Из корня `Remnacust-core`:
+
+```bash
+bash editor/go/build-remnacust.sh
+```
+
+Команда обновит схему, `main.wasm` и `wasm_exec.js` в соседней панели. Для другого расположения задайте `REMNACUST_PANEL_SOURCE=/path/to/Remnacust-panel`. Затем пересоберите образ панели. [Исходники редактора](editor/README.md).
+
+## Проверки
+
+Из каталога `xray`:
+
+```bash
+go test ./infra/conf ./transport/internet/xerahttp ./app/dispatcher ./app/proxyman/command ./app/commander
+```
+
+Версия upstream и дополнительные изменения записаны в [REMNACUST-UPSTREAM.json](xray/REMNACUST-UPSTREAM.json). [Поддержка](https://t.me/lottman).
+
+## Лицензии
+
+Ядро сохраняет [MPL-2.0](xray/LICENSE) и авторство Xray-core. Редактор и зависимости сохраняют собственные лицензии. Подробности: [NOTICE.md](NOTICE.md).
