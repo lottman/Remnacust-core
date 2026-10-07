@@ -1,0 +1,3861 @@
+{
+  "RemnacustCoreAPIConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "listen": {
+        "type": "string"
+      },
+      "services": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "tag": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreAddress": {
+    "additionalProperties": true,
+    "properties": {},
+    "type": "object"
+  },
+  "RemnacustCoreAuthenticator": {
+    "additionalProperties": true,
+    "properties": {
+      "request": {
+        "$ref": "#/definitions/RemnacustCoreAuthenticatorRequest"
+      },
+      "response": {
+        "$ref": "#/definitions/RemnacustCoreAuthenticatorResponse"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreAuthenticatorRequest": {
+    "additionalProperties": true,
+    "properties": {
+      "headers": {
+        "additionalProperties": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ]
+        },
+        "type": "object"
+      },
+      "method": {
+        "type": "string"
+      },
+      "path": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        ]
+      },
+      "version": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreAuthenticatorResponse": {
+    "additionalProperties": true,
+    "properties": {
+      "headers": {
+        "additionalProperties": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ]
+        },
+        "type": "object"
+      },
+      "reason": {
+        "type": "string"
+      },
+      "status": {
+        "type": "string"
+      },
+      "version": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreBalancingRule": {
+    "additionalProperties": true,
+    "properties": {
+      "fallbackTag": {
+        "type": "string"
+      },
+      "selector": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        ]
+      },
+      "strategy": {
+        "$ref": "#/definitions/RemnacustCoreStrategyConfig"
+      },
+      "tag": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreBandwidth": {
+    "type": "string"
+  },
+  "RemnacustCoreBlackholeConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "response": {
+        "$ref": "#/definitions/RemnacustCoreResponseConfig"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreBridgeConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "domain": {
+        "type": "string"
+      },
+      "tag": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreBuildable": {},
+  "RemnacustCoreBurstObservatoryConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "pingConfig": {
+        "$ref": "#/definitions/RemnacustCoreHealthCheckSettings"
+      },
+      "subjectSelector": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "api": {
+        "$ref": "#/definitions/RemnacustCoreAPIConfig"
+      },
+      "burstObservatory": {
+        "$ref": "#/definitions/RemnacustCoreBurstObservatoryConfig"
+      },
+      "dns": {
+        "$ref": "#/definitions/RemnacustCoreDNSConfig"
+      },
+      "env": {
+        "$ref": "#/definitions/RemnacustCoreEnvConfig"
+      },
+      "fakeDns": {
+        "$ref": "#/definitions/RemnacustCoreFakeDNSConfig"
+      },
+      "geodata": {
+        "$ref": "#/definitions/RemnacustCoreGeodataConfig"
+      },
+      "inbounds": {
+        "items": {
+          "$ref": "#/definitions/RemnacustCoreInboundDetourConfig"
+        },
+        "type": "array"
+      },
+      "log": {
+        "$ref": "#/definitions/RemnacustCoreLogConfig"
+      },
+      "metrics": {
+        "$ref": "#/definitions/RemnacustCoreMetricsConfig"
+      },
+      "observatory": {
+        "$ref": "#/definitions/RemnacustCoreObservatoryConfig"
+      },
+      "outbounds": {
+        "items": {
+          "$ref": "#/definitions/RemnacustCoreOutboundDetourConfig"
+        },
+        "type": "array"
+      },
+      "policy": {
+        "$ref": "#/definitions/RemnacustCorePolicyConfig"
+      },
+      "reverse": {
+        "$ref": "#/definitions/RemnacustCoreReverseConfig"
+      },
+      "routing": {
+        "$ref": "#/definitions/RemnacustCoreRouterConfig"
+      },
+      "stats": {
+        "$ref": "#/definitions/RemnacustCoreStatsConfig"
+      },
+      "transport": {
+        "additionalProperties": {},
+        "type": "object"
+      },
+      "version": {
+        "$ref": "#/definitions/RemnacustCoreVersionConfig"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreConfigCreator": {},
+  "RemnacustCoreConfigCreatorCache": {
+    "additionalProperties": {
+      "$ref": "#/definitions/RemnacustCoreConfigCreator"
+    },
+    "type": "object"
+  },
+  "RemnacustCoreConfigureFilePostProcessingStage": {},
+  "RemnacustCoreCustomSockoptConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "level": {
+        "type": "string"
+      },
+      "network": {
+        "type": "string"
+      },
+      "opt": {
+        "type": "string"
+      },
+      "system": {
+        "type": "string"
+      },
+      "type": {
+        "type": "string"
+      },
+      "value": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreCustomTransform": {
+    "additionalProperties": true,
+    "properties": {
+      "args": {
+        "items": {
+          "$ref": "#/definitions/RemnacustCoreCustomTransformArg"
+        },
+        "type": "array"
+      },
+      "op": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreCustomTransformArg": {
+    "additionalProperties": true,
+    "properties": {
+      "bytes": {},
+      "metadata": {
+        "type": "string"
+      },
+      "reuse": {
+        "type": "string"
+      },
+      "transform": {
+        "$ref": "#/definitions/RemnacustCoreCustomTransform"
+      },
+      "type": {
+        "type": "string"
+      },
+      "u64": {
+        "type": "integer"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreDNSConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "clientIp": {
+        "type": "string"
+      },
+      "disableCache": {
+        "type": "boolean"
+      },
+      "disableFallback": {
+        "type": "boolean"
+      },
+      "disableFallbackIfMatch": {
+        "type": "boolean"
+      },
+      "enableParallelQuery": {
+        "type": "boolean"
+      },
+      "hosts": {
+        "$ref": "#/definitions/RemnacustCoreHostsWrapper"
+      },
+      "queryStrategy": {
+        "type": "string"
+      },
+      "serveExpiredTTL": {
+        "type": "integer"
+      },
+      "serveStale": {
+        "type": "boolean"
+      },
+      "servers": {
+        "items": {
+          "$ref": "#/definitions/RemnacustCoreNameServerConfig"
+        },
+        "type": "array"
+      },
+      "tag": {
+        "type": "string"
+      },
+      "useSystemHosts": {
+        "type": "boolean"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreDNSOutboundConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "address": {
+        "type": "string"
+      },
+      "blockTypes": {
+        "items": {
+          "type": "integer"
+        },
+        "type": "array"
+      },
+      "network": {
+        "$ref": "#/definitions/RemnacustCoreNetwork"
+      },
+      "nonIPQuery": {
+        "type": "string"
+      },
+      "port": {
+        "type": "integer"
+      },
+      "rewriteAddress": {
+        "type": "string"
+      },
+      "rewriteNetwork": {
+        "$ref": "#/definitions/RemnacustCoreNetwork"
+      },
+      "rewritePort": {
+        "type": "integer"
+      },
+      "rules": {
+        "items": {
+          "$ref": "#/definitions/RemnacustCoreDNSOutboundRuleConfig"
+        },
+        "type": "array"
+      },
+      "userLevel": {
+        "type": "integer"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreDNSOutboundRuleConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "action": {
+        "type": "string"
+      },
+      "domain": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        ]
+      },
+      "qType": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "rCode": {
+        "type": "integer"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreDokodemoConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "address": {
+        "type": "string"
+      },
+      "allowedNetwork": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        ]
+      },
+      "followRedirect": {
+        "type": "boolean"
+      },
+      "network": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        ]
+      },
+      "port": {
+        "type": "integer"
+      },
+      "portMap": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": "object"
+      },
+      "rewriteAddress": {
+        "type": "string"
+      },
+      "rewritePort": {
+        "type": "integer"
+      },
+      "userLevel": {
+        "type": "integer"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreEnvConfig": {
+    "additionalProperties": {
+      "type": "string"
+    },
+    "type": "object"
+  },
+  "RemnacustCoreFakeDNSConfig": {
+    "additionalProperties": true,
+    "properties": {},
+    "type": "object"
+  },
+  "RemnacustCoreFakeDNSPoolElementConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "ipPool": {
+        "type": "string"
+      },
+      "poolSize": {
+        "type": "integer"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreFakeDNSPostProcessingStage": {
+    "additionalProperties": true,
+    "properties": {},
+    "type": "object"
+  },
+  "RemnacustCoreFinalMask": {
+    "additionalProperties": true,
+    "properties": {
+      "quicParams": {
+        "$ref": "#/definitions/RemnacustCoreQuicParamsConfig"
+      },
+      "tcp": {
+        "items": {
+          "$ref": "#/definitions/RemnacustCoreMask"
+        },
+        "type": "array"
+      },
+      "udp": {
+        "items": {
+          "$ref": "#/definitions/RemnacustCoreMask"
+        },
+        "type": "array"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreFragment": {
+    "additionalProperties": true,
+    "properties": {
+      "interval": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "length": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "maxSplit": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "packets": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreFragmentMask": {
+    "additionalProperties": true,
+    "properties": {
+      "delay": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "delays": {
+        "items": {
+          "type": [
+            "integer",
+            "string"
+          ]
+        },
+        "type": "array"
+      },
+      "length": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "lengths": {
+        "items": {
+          "type": [
+            "integer",
+            "string"
+          ]
+        },
+        "type": "array"
+      },
+      "maxSplit": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "packets": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreFreedomConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "domainStrategy": {
+        "type": "string"
+      },
+      "finalRules": {
+        "items": {
+          "$ref": "#/definitions/RemnacustCoreFreedomFinalRuleConfig"
+        },
+        "type": "array"
+      },
+      "fragment": {
+        "$ref": "#/definitions/RemnacustCoreFragment"
+      },
+      "ipsBlocked": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        ]
+      },
+      "noise": {
+        "$ref": "#/definitions/RemnacustCoreNoise"
+      },
+      "noises": {
+        "items": {
+          "$ref": "#/definitions/RemnacustCoreNoise"
+        },
+        "type": "array"
+      },
+      "proxyProtocol": {
+        "type": "integer"
+      },
+      "redirect": {
+        "type": "string"
+      },
+      "targetStrategy": {
+        "type": "string"
+      },
+      "userLevel": {
+        "type": "integer"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreFreedomFinalRuleConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "action": {
+        "type": "string"
+      },
+      "blockDelay": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "ip": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        ]
+      },
+      "network": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        ]
+      },
+      "port": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreGRPCConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "authority": {
+        "type": "string"
+      },
+      "health_check_timeout": {
+        "type": "integer"
+      },
+      "idle_timeout": {
+        "type": "integer"
+      },
+      "initial_windows_size": {
+        "type": "integer"
+      },
+      "multiMode": {
+        "type": "boolean"
+      },
+      "permit_without_stream": {
+        "type": "boolean"
+      },
+      "serviceName": {
+        "type": "string"
+      },
+      "user_agent": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreGeodataAssetConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "file": {
+        "type": "string"
+      },
+      "url": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreGeodataConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "assets": {
+        "items": {
+          "$ref": "#/definitions/RemnacustCoreGeodataAssetConfig"
+        },
+        "type": "array"
+      },
+      "cron": {
+        "type": "string"
+      },
+      "outbound": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreHTTPAccount": {
+    "additionalProperties": true,
+    "properties": {
+      "pass": {
+        "type": "string"
+      },
+      "user": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreHTTPClientConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "address": {
+        "type": "string"
+      },
+      "email": {
+        "type": "string"
+      },
+      "headers": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": "object"
+      },
+      "level": {
+        "type": "integer"
+      },
+      "pass": {
+        "type": "string"
+      },
+      "port": {
+        "type": "integer"
+      },
+      "servers": {
+        "items": {
+          "$ref": "#/definitions/RemnacustCoreHTTPRemoteConfig"
+        },
+        "type": "array"
+      },
+      "user": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreHTTPRemoteConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "address": {
+        "type": "string"
+      },
+      "port": {
+        "type": "integer"
+      },
+      "users": {
+        "items": {},
+        "type": "array"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreHTTPServerConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "accounts": {
+        "items": {
+          "$ref": "#/definitions/RemnacustCoreHTTPAccount"
+        },
+        "type": "array"
+      },
+      "allowTransparent": {
+        "type": "boolean"
+      },
+      "userLevel": {
+        "type": "integer"
+      },
+      "users": {
+        "items": {
+          "$ref": "#/definitions/RemnacustCoreHTTPAccount"
+        },
+        "type": "array"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreHappyEyeballsConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "interleave": {
+        "type": "integer"
+      },
+      "maxConcurrentTry": {
+        "type": "integer"
+      },
+      "prioritizeIPv6": {
+        "type": "boolean"
+      },
+      "tryDelayMs": {
+        "type": "integer"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreHeaderCustomTCP": {
+    "additionalProperties": true,
+    "properties": {
+      "clients": {
+        "items": {
+          "items": {
+            "$ref": "#/definitions/RemnacustCoreTCPItem"
+          },
+          "type": "array"
+        },
+        "type": "array"
+      },
+      "errors": {
+        "items": {
+          "items": {
+            "$ref": "#/definitions/RemnacustCoreTCPItem"
+          },
+          "type": "array"
+        },
+        "type": "array"
+      },
+      "servers": {
+        "items": {
+          "items": {
+            "$ref": "#/definitions/RemnacustCoreTCPItem"
+          },
+          "type": "array"
+        },
+        "type": "array"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreHeaderCustomUDP": {
+    "additionalProperties": true,
+    "properties": {
+      "client": {
+        "items": {
+          "$ref": "#/definitions/RemnacustCoreUDPItem"
+        },
+        "type": "array"
+      },
+      "mode": {
+        "type": "string"
+      },
+      "server": {
+        "items": {
+          "$ref": "#/definitions/RemnacustCoreUDPItem"
+        },
+        "type": "array"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreHealthCheckSettings": {
+    "additionalProperties": true,
+    "properties": {
+      "connectivity": {
+        "type": "string"
+      },
+      "destination": {
+        "type": "string"
+      },
+      "httpMethod": {
+        "type": "string"
+      },
+      "interval": {},
+      "sampling": {
+        "type": "integer"
+      },
+      "timeout": {}
+    },
+    "type": "object"
+  },
+  "RemnacustCoreHostAddress": {
+    "additionalProperties": true,
+    "properties": {},
+    "type": "object"
+  },
+  "RemnacustCoreHostsWrapper": {
+    "additionalProperties": true,
+    "properties": {},
+    "type": "object"
+  },
+  "RemnacustCoreHttpUpgradeConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "acceptProxyProtocol": {
+        "type": "boolean"
+      },
+      "headers": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": "object"
+      },
+      "host": {
+        "type": "string"
+      },
+      "path": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreHysteriaClientConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "address": {
+        "type": "string"
+      },
+      "port": {
+        "type": "integer"
+      },
+      "version": {
+        "type": "integer"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreHysteriaConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "auth": {
+        "type": "string"
+      },
+      "masquerade": {
+        "$ref": "#/definitions/RemnacustCoreMasquerade"
+      },
+      "udpIdleTimeout": {
+        "type": "integer"
+      },
+      "version": {
+        "type": "integer"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreHysteriaServerConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "clients": {
+        "items": {
+          "$ref": "#/definitions/RemnacustCoreHysteriaUserConfig"
+        },
+        "type": "array"
+      },
+      "users": {
+        "items": {
+          "$ref": "#/definitions/RemnacustCoreHysteriaUserConfig"
+        },
+        "type": "array"
+      },
+      "version": {
+        "type": "integer"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreHysteriaUserConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "auth": {
+        "type": "string"
+      },
+      "email": {
+        "type": "string"
+      },
+      "level": {
+        "type": "integer"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreInboundDetourConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "listen": {
+        "type": "string"
+      },
+      "port": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "protocol": {
+        "type": "string"
+      },
+      "settings": {},
+      "sniffing": {
+        "$ref": "#/definitions/RemnacustCoreSniffingConfig"
+      },
+      "streamSettings": {
+        "$ref": "#/definitions/RemnacustCoreStreamConfig"
+      },
+      "tag": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreInt32Range": {
+    "additionalProperties": true,
+    "properties": {},
+    "type": "object"
+  },
+  "RemnacustCoreJSONConfigLoader": {
+    "additionalProperties": true,
+    "properties": {},
+    "type": "object"
+  },
+  "RemnacustCoreKCPConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "cwndMultiplier": {
+        "type": "integer"
+      },
+      "downlinkCapacity": {
+        "type": "integer"
+      },
+      "header": {},
+      "maxSendingWindow": {
+        "type": "integer"
+      },
+      "mtu": {
+        "type": "integer"
+      },
+      "seed": {
+        "type": "string"
+      },
+      "tti": {
+        "type": "integer"
+      },
+      "uplinkCapacity": {
+        "type": "integer"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreLegacyUDPHop": {
+    "additionalProperties": true,
+    "properties": {
+      "interval": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "ports": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreLimitFallback": {
+    "additionalProperties": true,
+    "properties": {},
+    "type": "object"
+  },
+  "RemnacustCoreLogConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "access": {
+        "type": "string"
+      },
+      "dnsLog": {
+        "type": "boolean"
+      },
+      "error": {
+        "type": "string"
+      },
+      "loglevel": {
+        "type": "string"
+      },
+      "maskAddress": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreLoopbackConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "inboundTag": {
+        "type": "string"
+      },
+      "sniffing": {
+        "$ref": "#/definitions/RemnacustCoreSniffingConfig"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreMask": {
+    "additionalProperties": true,
+    "properties": {
+      "settings": {},
+      "type": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreMasqueClientConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "address": {
+        "type": "string"
+      },
+      "port": {
+        "type": "integer"
+      },
+      "remoteDNS": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreMasqueConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "headers": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": "object"
+      },
+      "host": {
+        "type": "string"
+      },
+      "pass": {
+        "type": "string"
+      },
+      "path": {
+        "type": "string"
+      },
+      "user": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreMasqueServerConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "address": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "clients": {
+        "items": {
+          "$ref": "#/definitions/RemnacustCoreMasqueUserConfig"
+        },
+        "type": "array"
+      },
+      "mtu": {
+        "type": "integer"
+      },
+      "users": {
+        "items": {
+          "$ref": "#/definitions/RemnacustCoreMasqueUserConfig"
+        },
+        "type": "array"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreMasqueUserConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "email": {
+        "type": "string"
+      },
+      "level": {
+        "type": "integer"
+      },
+      "pass": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreMasquerade": {
+    "additionalProperties": true,
+    "properties": {
+      "content": {
+        "type": "string"
+      },
+      "dir": {
+        "type": "string"
+      },
+      "headers": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": "object"
+      },
+      "insecure": {
+        "type": "boolean"
+      },
+      "rewriteHost": {
+        "type": "boolean"
+      },
+      "statusCode": {
+        "type": "integer"
+      },
+      "type": {
+        "type": "string"
+      },
+      "url": {
+        "type": "string"
+      },
+      "xForwarded": {
+        "type": "boolean"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreMetricsConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "listen": {
+        "type": "string"
+      },
+      "tag": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreMkcpLegacy": {
+    "additionalProperties": true,
+    "properties": {
+      "header": {
+        "type": "string"
+      },
+      "value": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreMuxConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "concurrency": {},
+      "enabled": {
+        "type": "boolean"
+      },
+      "xudpConcurrency": {},
+      "xudpProxyUDP443": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreNameServerConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "address": {
+        "type": "string"
+      },
+      "clientIp": {
+        "type": "string"
+      },
+      "disableCache": {
+        "type": "boolean"
+      },
+      "domains": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        ]
+      },
+      "expectIPs": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        ]
+      },
+      "expectedIPs": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        ]
+      },
+      "finalQuery": {
+        "type": "boolean"
+      },
+      "port": {
+        "type": "integer"
+      },
+      "queryStrategy": {
+        "type": "string"
+      },
+      "serveExpiredTTL": {
+        "type": "integer"
+      },
+      "serveStale": {
+        "type": "boolean"
+      },
+      "skipFallback": {
+        "type": "boolean"
+      },
+      "tag": {
+        "type": "string"
+      },
+      "timeoutMs": {
+        "type": "integer"
+      },
+      "unexpectedIPs": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        ]
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreNetwork": {
+    "type": "string"
+  },
+  "RemnacustCoreNetworkList": {
+    "items": {
+      "$ref": "#/definitions/RemnacustCoreNetwork"
+    },
+    "type": "array"
+  },
+  "RemnacustCoreNoOpConnectionAuthenticator": {
+    "additionalProperties": true,
+    "properties": {},
+    "type": "object"
+  },
+  "RemnacustCoreNoise": {
+    "additionalProperties": true,
+    "properties": {
+      "applyTo": {
+        "type": "string"
+      },
+      "delay": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "packet": {
+        "type": "string"
+      },
+      "type": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreNoiseItem": {
+    "additionalProperties": true,
+    "properties": {
+      "delay": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "packet": {},
+      "rand": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "randRange": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "type": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreNoiseMask": {
+    "additionalProperties": true,
+    "properties": {
+      "noise": {
+        "items": {
+          "$ref": "#/definitions/RemnacustCoreNoiseItem"
+        },
+        "type": "array"
+      },
+      "reset": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreObservatoryConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "enableConcurrency": {
+        "type": "boolean"
+      },
+      "probeInterval": {},
+      "probeURL": {
+        "type": "string"
+      },
+      "subjectSelector": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreOlcrtcConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "authToken": {
+        "type": "string"
+      },
+      "cryptoKey": {
+        "type": "string"
+      },
+      "deviceId": {
+        "type": "string"
+      },
+      "dnsServer": {
+        "type": "string"
+      },
+      "provider": {
+        "type": "string"
+      },
+      "roomId": {
+        "type": "string"
+      },
+      "transport": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreOutboundDetourConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "mux": {
+        "$ref": "#/definitions/RemnacustCoreMuxConfig"
+      },
+      "protocol": {
+        "type": "string"
+      },
+      "proxySettings": {},
+      "sendThrough": {
+        "type": "string"
+      },
+      "settings": {},
+      "streamSettings": {
+        "$ref": "#/definitions/RemnacustCoreStreamConfig"
+      },
+      "tag": {
+        "type": "string"
+      },
+      "targetStrategy": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCorePolicy": {
+    "additionalProperties": true,
+    "properties": {
+      "bufferSize": {
+        "type": "integer"
+      },
+      "connIdle": {
+        "type": "integer"
+      },
+      "downlinkOnly": {
+        "type": "integer"
+      },
+      "handshake": {
+        "type": "integer"
+      },
+      "statsUserDownlink": {
+        "type": "boolean"
+      },
+      "statsUserOnline": {
+        "type": "boolean"
+      },
+      "statsUserUplink": {
+        "type": "boolean"
+      },
+      "uplinkOnly": {
+        "type": "integer"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCorePolicyConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "levels": {
+        "additionalProperties": {
+          "$ref": "#/definitions/RemnacustCorePolicy"
+        },
+        "type": "object"
+      },
+      "system": {
+        "$ref": "#/definitions/RemnacustCoreSystemPolicy"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCorePortList": {
+    "additionalProperties": true,
+    "properties": {},
+    "type": "object"
+  },
+  "RemnacustCorePortRange": {
+    "additionalProperties": true,
+    "properties": {},
+    "type": "object"
+  },
+  "RemnacustCorePortalConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "domain": {
+        "type": "string"
+      },
+      "tag": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreQuicParamsConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "bbrProfile": {
+        "type": "string"
+      },
+      "brutalDisableLossCompensation": {
+        "type": "boolean"
+      },
+      "brutalDown": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "brutalUp": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "congestion": {
+        "type": "string"
+      },
+      "debug": {
+        "type": "boolean"
+      },
+      "disableChromeParrot": {
+        "type": "boolean"
+      },
+      "disableGSO": {
+        "type": "boolean"
+      },
+      "disablePathMTUDiscovery": {
+        "type": "boolean"
+      },
+      "disableStatelessReset": {
+        "type": "boolean"
+      },
+      "initConnectionReceiveWindow": {
+        "type": "integer"
+      },
+      "initStreamReceiveWindow": {
+        "type": "integer"
+      },
+      "keepAlivePeriod": {
+        "type": "integer"
+      },
+      "maxConnectionReceiveWindow": {
+        "type": "integer"
+      },
+      "maxIdleTimeout": {
+        "type": "integer"
+      },
+      "maxIncomingStreams": {
+        "type": "integer"
+      },
+      "maxStreamReceiveWindow": {
+        "type": "integer"
+      },
+      "udpHop": {
+        "$ref": "#/definitions/RemnacustCoreLegacyUDPHop"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreREALITYConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "dest": {},
+      "fingerprint": {
+        "type": "string"
+      },
+      "limitFallbackDownload": {
+        "$ref": "#/definitions/RemnacustCoreLimitFallback"
+      },
+      "limitFallbackUpload": {
+        "$ref": "#/definitions/RemnacustCoreLimitFallback"
+      },
+      "masterKeyLog": {
+        "type": "string"
+      },
+      "maxClientVer": {
+        "type": "string"
+      },
+      "maxTimeDiff": {
+        "type": "integer"
+      },
+      "minClientVer": {
+        "type": "string"
+      },
+      "mldsa65Seed": {
+        "type": "string"
+      },
+      "mldsa65Verify": {
+        "type": "string"
+      },
+      "password": {
+        "type": "string"
+      },
+      "privateKey": {
+        "type": "string"
+      },
+      "publicKey": {
+        "type": "string"
+      },
+      "serverName": {
+        "type": "string"
+      },
+      "serverNames": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "shortId": {
+        "type": "string"
+      },
+      "shortIds": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "show": {
+        "type": "boolean"
+      },
+      "spiderX": {
+        "type": "string"
+      },
+      "target": {},
+      "type": {
+        "type": "string"
+      },
+      "xver": {
+        "type": "integer"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreRawFieldRule": {
+    "additionalProperties": true,
+    "properties": {
+      "attrs": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": "object"
+      },
+      "domain": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        ]
+      },
+      "domains": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        ]
+      },
+      "inboundTag": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        ]
+      },
+      "ip": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        ]
+      },
+      "localIP": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        ]
+      },
+      "localOS": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        ]
+      },
+      "localPort": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "network": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        ]
+      },
+      "port": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "process": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        ]
+      },
+      "protocol": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        ]
+      },
+      "source": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        ]
+      },
+      "sourceIP": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        ]
+      },
+      "sourcePort": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "user": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        ]
+      },
+      "vlessRoute": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "webhook": {
+        "$ref": "#/definitions/RemnacustCoreWebhookRuleConfig"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreRealm": {
+    "additionalProperties": true,
+    "properties": {
+      "ipMode": {
+        "type": "string"
+      },
+      "portMapping": {},
+      "stunServers": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "tlsConfig": {
+        "$ref": "#/definitions/RemnacustCoreTLSConfig"
+      },
+      "url": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreResponseConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "customResponseData": {
+        "type": "string"
+      },
+      "type": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreReverseConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "bridges": {
+        "items": {
+          "$ref": "#/definitions/RemnacustCoreBridgeConfig"
+        },
+        "type": "array"
+      },
+      "portals": {
+        "items": {
+          "$ref": "#/definitions/RemnacustCorePortalConfig"
+        },
+        "type": "array"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreRouterConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "balancers": {
+        "items": {
+          "$ref": "#/definitions/RemnacustCoreBalancingRule"
+        },
+        "type": "array"
+      },
+      "domainStrategy": {
+        "type": "string"
+      },
+      "rules": {
+        "items": {},
+        "type": "array"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreRouterRule": {
+    "additionalProperties": true,
+    "properties": {
+      "balancerTag": {
+        "type": "string"
+      },
+      "outboundTag": {
+        "type": "string"
+      },
+      "ruleTag": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreSalamander": {
+    "additionalProperties": true,
+    "properties": {
+      "packetSize": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "password": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreShadowsocksClientConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "address": {
+        "type": "string"
+      },
+      "email": {
+        "type": "string"
+      },
+      "level": {
+        "type": "integer"
+      },
+      "method": {
+        "type": "string"
+      },
+      "password": {
+        "type": "string"
+      },
+      "port": {
+        "type": "integer"
+      },
+      "servers": {
+        "items": {
+          "$ref": "#/definitions/RemnacustCoreShadowsocksServerTarget"
+        },
+        "type": "array"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreShadowsocksServerConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "clients": {
+        "items": {
+          "$ref": "#/definitions/RemnacustCoreShadowsocksUserConfig"
+        },
+        "type": "array"
+      },
+      "email": {
+        "type": "string"
+      },
+      "level": {
+        "type": "integer"
+      },
+      "method": {
+        "type": "string"
+      },
+      "network": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        ]
+      },
+      "password": {
+        "type": "string"
+      },
+      "users": {
+        "items": {
+          "$ref": "#/definitions/RemnacustCoreShadowsocksUserConfig"
+        },
+        "type": "array"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreShadowsocksServerTarget": {
+    "additionalProperties": true,
+    "properties": {
+      "address": {
+        "type": "string"
+      },
+      "email": {
+        "type": "string"
+      },
+      "level": {
+        "type": "integer"
+      },
+      "method": {
+        "type": "string"
+      },
+      "password": {
+        "type": "string"
+      },
+      "port": {
+        "type": "integer"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreShadowsocksUserConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "address": {
+        "type": "string"
+      },
+      "email": {
+        "type": "string"
+      },
+      "level": {
+        "type": "integer"
+      },
+      "method": {
+        "type": "string"
+      },
+      "password": {
+        "type": "string"
+      },
+      "port": {
+        "type": "integer"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreSniffingConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "destOverride": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        ]
+      },
+      "domainsExcluded": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        ]
+      },
+      "enabled": {
+        "type": "boolean"
+      },
+      "ipsExcluded": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        ]
+      },
+      "metadataOnly": {
+        "type": "boolean"
+      },
+      "routeOnly": {
+        "type": "boolean"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreSocketConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "acceptProxyProtocol": {
+        "type": "boolean"
+      },
+      "addressPortStrategy": {
+        "type": "string"
+      },
+      "customSockopt": {
+        "items": {
+          "$ref": "#/definitions/RemnacustCoreCustomSockoptConfig"
+        },
+        "type": "array"
+      },
+      "dialerProxy": {
+        "type": "string"
+      },
+      "domainStrategy": {
+        "type": "string"
+      },
+      "happyEyeballs": {
+        "$ref": "#/definitions/RemnacustCoreHappyEyeballsConfig"
+      },
+      "interface": {
+        "type": "string"
+      },
+      "mark": {
+        "type": "integer"
+      },
+      "penetrate": {
+        "type": "boolean"
+      },
+      "tcpCongestion": {
+        "type": "string"
+      },
+      "tcpFastOpen": {},
+      "tcpKeepAliveIdle": {
+        "type": "integer"
+      },
+      "tcpKeepAliveInterval": {
+        "type": "integer"
+      },
+      "tcpMaxSeg": {
+        "type": "integer"
+      },
+      "tcpMptcp": {
+        "type": "boolean"
+      },
+      "tcpUserTimeout": {
+        "type": "integer"
+      },
+      "tcpWindowClamp": {
+        "type": "integer"
+      },
+      "tproxy": {
+        "type": "string"
+      },
+      "trustedXForwardedFor": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "v6only": {
+        "type": "boolean"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreSocksAccount": {
+    "additionalProperties": true,
+    "properties": {
+      "pass": {
+        "type": "string"
+      },
+      "user": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreSocksClientConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "address": {
+        "type": "string"
+      },
+      "email": {
+        "type": "string"
+      },
+      "level": {
+        "type": "integer"
+      },
+      "pass": {
+        "type": "string"
+      },
+      "port": {
+        "type": "integer"
+      },
+      "servers": {
+        "items": {
+          "$ref": "#/definitions/RemnacustCoreSocksRemoteConfig"
+        },
+        "type": "array"
+      },
+      "user": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreSocksRemoteConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "address": {
+        "type": "string"
+      },
+      "port": {
+        "type": "integer"
+      },
+      "users": {
+        "items": {},
+        "type": "array"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreSocksServerConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "accounts": {
+        "items": {
+          "$ref": "#/definitions/RemnacustCoreSocksAccount"
+        },
+        "type": "array"
+      },
+      "auth": {
+        "type": "string"
+      },
+      "ip": {
+        "type": "string"
+      },
+      "udp": {
+        "type": "boolean"
+      },
+      "userLevel": {
+        "type": "integer"
+      },
+      "users": {
+        "items": {
+          "$ref": "#/definitions/RemnacustCoreSocksAccount"
+        },
+        "type": "array"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreSplitHTTPConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "downloadSettings": {
+        "$ref": "#/definitions/RemnacustCoreStreamConfig"
+      },
+      "extra": {},
+      "headers": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": "object"
+      },
+      "host": {
+        "type": "string"
+      },
+      "mode": {
+        "type": "string"
+      },
+      "noGRPCHeader": {
+        "type": "boolean"
+      },
+      "noSSEHeader": {
+        "type": "boolean"
+      },
+      "path": {
+        "type": "string"
+      },
+      "scMaxBufferedPosts": {
+        "type": "integer"
+      },
+      "scMaxEachPostBytes": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "scMinPostsIntervalMs": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "scStreamUpServerSecs": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "seqKey": {
+        "type": "string"
+      },
+      "seqPlacement": {
+        "type": "string"
+      },
+      "serverMaxHeaderBytes": {
+        "type": "integer"
+      },
+      "sessionIDKey": {
+        "type": "string"
+      },
+      "sessionIDLength": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "sessionIDPlacement": {
+        "type": "string"
+      },
+      "sessionIDTable": {
+        "type": "string"
+      },
+      "uplinkChunkSize": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "uplinkDataKey": {
+        "type": "string"
+      },
+      "uplinkDataPlacement": {
+        "type": "string"
+      },
+      "uplinkHTTPMethod": {
+        "type": "string"
+      },
+      "xPaddingBytes": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "xPaddingHeader": {
+        "type": "string"
+      },
+      "xPaddingKey": {
+        "type": "string"
+      },
+      "xPaddingMethod": {
+        "type": "string"
+      },
+      "xPaddingObfsMode": {
+        "type": "boolean"
+      },
+      "xPaddingPlacement": {
+        "type": "string"
+      },
+      "xmux": {
+        "$ref": "#/definitions/RemnacustCoreXmuxConfig"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreStatsConfig": {
+    "additionalProperties": true,
+    "properties": {},
+    "type": "object"
+  },
+  "RemnacustCoreStrategyConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "settings": {},
+      "type": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreStreamConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "address": {
+        "type": "string"
+      },
+      "finalmask": {
+        "$ref": "#/definitions/RemnacustCoreFinalMask"
+      },
+      "grpcSettings": {
+        "$ref": "#/definitions/RemnacustCoreGRPCConfig"
+      },
+      "httpupgradeSettings": {
+        "$ref": "#/definitions/RemnacustCoreHttpUpgradeConfig"
+      },
+      "hysteriaSettings": {
+        "$ref": "#/definitions/RemnacustCoreHysteriaConfig"
+      },
+      "kcpSettings": {
+        "$ref": "#/definitions/RemnacustCoreKCPConfig"
+      },
+      "masqueSettings": {
+        "$ref": "#/definitions/RemnacustCoreMasqueConfig"
+      },
+      "method": {
+        "type": "string"
+      },
+      "network": {
+        "type": "string"
+      },
+      "port": {
+        "type": "integer"
+      },
+      "rawSettings": {
+        "$ref": "#/definitions/RemnacustCoreTCPConfig"
+      },
+      "realitySettings": {
+        "$ref": "#/definitions/RemnacustCoreREALITYConfig"
+      },
+      "security": {
+        "type": "string"
+      },
+      "sockopt": {
+        "$ref": "#/definitions/RemnacustCoreSocketConfig"
+      },
+      "splithttpSettings": {
+        "$ref": "#/definitions/RemnacustCoreSplitHTTPConfig"
+      },
+      "tcpSettings": {
+        "$ref": "#/definitions/RemnacustCoreTCPConfig"
+      },
+      "tlsSettings": {
+        "$ref": "#/definitions/RemnacustCoreTLSConfig"
+      },
+      "wsSettings": {
+        "$ref": "#/definitions/RemnacustCoreWebSocketConfig"
+      },
+      "xdriveSettings": {
+        "$ref": "#/definitions/RemnacustCoreXDriveConfig"
+      },
+      "xeraHttpSettings": {
+        "$ref": "#/definitions/RemnacustCoreXeraHTTPConfig"
+      },
+      "xhttpSettings": {
+        "$ref": "#/definitions/RemnacustCoreSplitHTTPConfig"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreStringList": {
+    "items": {
+      "type": "string"
+    },
+    "type": "array"
+  },
+  "RemnacustCoreSudoku": {
+    "additionalProperties": true,
+    "properties": {
+      "ascii": {
+        "type": "string"
+      },
+      "customTable": {
+        "type": "string"
+      },
+      "customTables": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "custom_table": {
+        "type": "string"
+      },
+      "custom_tables": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "paddingMax": {
+        "type": "integer"
+      },
+      "paddingMin": {
+        "type": "integer"
+      },
+      "padding_max": {
+        "type": "integer"
+      },
+      "padding_min": {
+        "type": "integer"
+      },
+      "password": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreSystemPolicy": {
+    "additionalProperties": true,
+    "properties": {
+      "statsInboundDownlink": {
+        "type": "boolean"
+      },
+      "statsInboundUplink": {
+        "type": "boolean"
+      },
+      "statsOutboundDownlink": {
+        "type": "boolean"
+      },
+      "statsOutboundUplink": {
+        "type": "boolean"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreTCPConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "acceptProxyProtocol": {
+        "type": "boolean"
+      },
+      "header": {}
+    },
+    "type": "object"
+  },
+  "RemnacustCoreTCPItem": {
+    "additionalProperties": true,
+    "properties": {
+      "capture": {
+        "type": "string"
+      },
+      "delay": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "packet": {},
+      "rand": {
+        "type": "integer"
+      },
+      "randRange": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "reuse": {
+        "type": "string"
+      },
+      "transform": {
+        "$ref": "#/definitions/RemnacustCoreCustomTransform"
+      },
+      "type": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreTLSCertConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "buildChain": {
+        "type": "boolean"
+      },
+      "certificate": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "certificateFile": {
+        "type": "string"
+      },
+      "key": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "keyFile": {
+        "type": "string"
+      },
+      "ocspStapling": {
+        "type": "integer"
+      },
+      "oneTimeLoading": {
+        "type": "boolean"
+      },
+      "usage": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreTLSConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "allowInsecure": {
+        "type": "boolean"
+      },
+      "alpn": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        ]
+      },
+      "certificates": {
+        "items": {
+          "$ref": "#/definitions/RemnacustCoreTLSCertConfig"
+        },
+        "type": "array"
+      },
+      "cipherSuites": {
+        "type": "string"
+      },
+      "curvePreferences": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        ]
+      },
+      "disableSystemRoot": {
+        "type": "boolean"
+      },
+      "echConfigList": {
+        "type": "string"
+      },
+      "echServerKeys": {
+        "type": "string"
+      },
+      "echSockopt": {
+        "$ref": "#/definitions/RemnacustCoreSocketConfig"
+      },
+      "enableSessionResumption": {
+        "type": "boolean"
+      },
+      "fingerprint": {
+        "type": "string"
+      },
+      "masterKeyLog": {
+        "type": "string"
+      },
+      "maxVersion": {
+        "type": "string"
+      },
+      "minVersion": {
+        "type": "string"
+      },
+      "pinnedPeerCertSha256": {
+        "type": "string"
+      },
+      "rejectUnknownSni": {
+        "type": "boolean"
+      },
+      "serverName": {
+        "type": "string"
+      },
+      "verifyPeerCertByName": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreTransportProtocol": {
+    "type": "string"
+  },
+  "RemnacustCoreTrojanClientConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "address": {
+        "type": "string"
+      },
+      "email": {
+        "type": "string"
+      },
+      "flow": {
+        "type": "string"
+      },
+      "level": {
+        "type": "integer"
+      },
+      "password": {
+        "type": "string"
+      },
+      "port": {
+        "type": "integer"
+      },
+      "servers": {
+        "items": {
+          "$ref": "#/definitions/RemnacustCoreTrojanServerTarget"
+        },
+        "type": "array"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreTrojanInboundFallback": {
+    "additionalProperties": true,
+    "properties": {
+      "alpn": {
+        "type": "string"
+      },
+      "dest": {},
+      "name": {
+        "type": "string"
+      },
+      "path": {
+        "type": "string"
+      },
+      "type": {
+        "type": "string"
+      },
+      "xver": {
+        "type": "integer"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreTrojanServerConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "clients": {
+        "items": {
+          "$ref": "#/definitions/RemnacustCoreTrojanUserConfig"
+        },
+        "type": "array"
+      },
+      "fallbacks": {
+        "items": {
+          "$ref": "#/definitions/RemnacustCoreTrojanInboundFallback"
+        },
+        "type": "array"
+      },
+      "users": {
+        "items": {
+          "$ref": "#/definitions/RemnacustCoreTrojanUserConfig"
+        },
+        "type": "array"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreTrojanServerTarget": {
+    "additionalProperties": true,
+    "properties": {
+      "address": {
+        "type": "string"
+      },
+      "email": {
+        "type": "string"
+      },
+      "flow": {
+        "type": "string"
+      },
+      "level": {
+        "type": "integer"
+      },
+      "password": {
+        "type": "string"
+      },
+      "port": {
+        "type": "integer"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreTrojanUserConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "email": {
+        "type": "string"
+      },
+      "flow": {
+        "type": "string"
+      },
+      "level": {
+        "type": "integer"
+      },
+      "password": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreTunConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "autoOutboundsInterface": {
+        "type": "string"
+      },
+      "autoSystemDNS": {
+        "type": "boolean"
+      },
+      "autoSystemDnsToGateway": {
+        "type": "boolean"
+      },
+      "autoSystemRoutingTable": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "autoSystemWfpBlockLeak": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "desc": {
+        "type": "string"
+      },
+      "dns": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "gateway": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "mtu": {
+        "type": "integer"
+      },
+      "name": {
+        "type": "string"
+      },
+      "userLevel": {
+        "type": "integer"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreUDPHop": {
+    "additionalProperties": true,
+    "properties": {
+      "interval": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "mode": {
+        "type": "string"
+      },
+      "remoteIPs": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "remotePorts": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreUDPItem": {
+    "additionalProperties": true,
+    "properties": {
+      "capture": {
+        "type": "string"
+      },
+      "packet": {},
+      "rand": {
+        "type": "integer"
+      },
+      "randRange": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "reuse": {
+        "type": "string"
+      },
+      "transform": {
+        "$ref": "#/definitions/RemnacustCoreCustomTransform"
+      },
+      "type": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreUser": {
+    "additionalProperties": true,
+    "properties": {
+      "email": {
+        "type": "string"
+      },
+      "level": {
+        "type": "integer"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreVLessInboundConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "clients": {
+        "items": {},
+        "type": "array"
+      },
+      "decryption": {
+        "type": "string"
+      },
+      "fallbacks": {
+        "items": {
+          "$ref": "#/definitions/RemnacustCoreVLessInboundFallback"
+        },
+        "type": "array"
+      },
+      "flow": {
+        "type": "string"
+      },
+      "testseed": {
+        "items": {
+          "type": "integer"
+        },
+        "type": "array"
+      },
+      "users": {
+        "items": {},
+        "type": "array"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreVLessInboundFallback": {
+    "additionalProperties": true,
+    "properties": {
+      "alpn": {
+        "type": "string"
+      },
+      "dest": {},
+      "name": {
+        "type": "string"
+      },
+      "path": {
+        "type": "string"
+      },
+      "type": {
+        "type": "string"
+      },
+      "xver": {
+        "type": "integer"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreVLessOutboundConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "address": {
+        "type": "string"
+      },
+      "email": {
+        "type": "string"
+      },
+      "encryption": {
+        "type": "string"
+      },
+      "flow": {
+        "type": "string"
+      },
+      "id": {
+        "type": "string"
+      },
+      "level": {
+        "type": "integer"
+      },
+      "port": {
+        "type": "integer"
+      },
+      "reverse": {
+        "$ref": "#/definitions/RemnacustCoreVLessReverseConfig"
+      },
+      "seed": {
+        "type": "string"
+      },
+      "testpre": {
+        "type": "integer"
+      },
+      "testseed": {
+        "items": {
+          "type": "integer"
+        },
+        "type": "array"
+      },
+      "vnext": {
+        "items": {
+          "$ref": "#/definitions/RemnacustCoreVLessOutboundVnext"
+        },
+        "type": "array"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreVLessOutboundVnext": {
+    "additionalProperties": true,
+    "properties": {
+      "address": {
+        "type": "string"
+      },
+      "port": {
+        "type": "integer"
+      },
+      "users": {
+        "items": {},
+        "type": "array"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreVLessReverseConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "sniffing": {
+        "$ref": "#/definitions/RemnacustCoreSniffingConfig"
+      },
+      "tag": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreVMessAccount": {
+    "additionalProperties": true,
+    "properties": {
+      "experiments": {
+        "type": "string"
+      },
+      "id": {
+        "type": "string"
+      },
+      "security": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreVMessDefaultConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "level": {
+        "type": "integer"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreVMessInboundConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "clients": {
+        "items": {},
+        "type": "array"
+      },
+      "default": {
+        "$ref": "#/definitions/RemnacustCoreVMessDefaultConfig"
+      },
+      "users": {
+        "items": {},
+        "type": "array"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreVMessOutboundConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "address": {
+        "type": "string"
+      },
+      "email": {
+        "type": "string"
+      },
+      "experiments": {
+        "type": "string"
+      },
+      "id": {
+        "type": "string"
+      },
+      "level": {
+        "type": "integer"
+      },
+      "port": {
+        "type": "integer"
+      },
+      "security": {
+        "type": "string"
+      },
+      "vnext": {
+        "items": {
+          "$ref": "#/definitions/RemnacustCoreVMessOutboundTarget"
+        },
+        "type": "array"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreVMessOutboundTarget": {
+    "additionalProperties": true,
+    "properties": {
+      "address": {
+        "type": "string"
+      },
+      "port": {
+        "type": "integer"
+      },
+      "users": {
+        "items": {},
+        "type": "array"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreVersionConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "max": {
+        "type": "string"
+      },
+      "min": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreWebSocketConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "acceptProxyProtocol": {
+        "type": "boolean"
+      },
+      "headers": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": "object"
+      },
+      "heartbeatPeriod": {
+        "type": "integer"
+      },
+      "host": {
+        "type": "string"
+      },
+      "path": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreWebhookRuleConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "deduplication": {
+        "type": "integer"
+      },
+      "headers": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": "object"
+      },
+      "url": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreWireGuardConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "address": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "mtu": {
+        "type": "integer"
+      },
+      "noKernelTun": {
+        "type": "boolean"
+      },
+      "peers": {
+        "items": {
+          "$ref": "#/definitions/RemnacustCoreWireGuardPeerConfig"
+        },
+        "type": "array"
+      },
+      "remoteDNS": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "reserved": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "items": {
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": "array"
+          }
+        ]
+      },
+      "secretKey": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreWireGuardPeerConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "allowedIPs": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "email": {
+        "type": "string"
+      },
+      "endpoint": {
+        "type": "string"
+      },
+      "keepAlive": {
+        "type": "integer"
+      },
+      "level": {
+        "type": "integer"
+      },
+      "preSharedKey": {
+        "type": "string"
+      },
+      "publicKey": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreXDNS": {
+    "additionalProperties": true,
+    "properties": {
+      "domains": {
+        "items": {
+          "$ref": "#/definitions/RemnacustCoreXDNSDomain"
+        },
+        "type": "array"
+      },
+      "extraPoll": {
+        "type": "integer"
+      },
+      "resolvers": {
+        "items": {
+          "$ref": "#/definitions/RemnacustCoreXDNSResolver"
+        },
+        "type": "array"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreXDNSDomain": {
+    "additionalProperties": true,
+    "properties": {
+      "edns0": {
+        "type": "integer"
+      },
+      "labelLimit": {
+        "type": "integer"
+      },
+      "lenLimit": {
+        "type": "integer"
+      },
+      "name": {
+        "type": "string"
+      },
+      "types": {
+        "items": {
+          "type": "integer"
+        },
+        "type": "array"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreXDNSResolver": {
+    "additionalProperties": true,
+    "properties": {
+      "settings": {},
+      "type": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreXDNSResolverTCP": {
+    "additionalProperties": true,
+    "properties": {
+      "addr": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreXDNSResolverUDP": {
+    "additionalProperties": true,
+    "properties": {
+      "addr": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreXDriveConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "concurrency": {
+        "type": "integer"
+      },
+      "eagerWindowMs": {
+        "type": "integer"
+      },
+      "flushIntervalMs": {
+        "type": "integer"
+      },
+      "holeTimeoutMs": {
+        "type": "integer"
+      },
+      "maxPollIntervalMs": {
+        "type": "integer"
+      },
+      "pollIntervalMs": {
+        "type": "integer"
+      },
+      "remoteFolder": {
+        "type": "string"
+      },
+      "secrets": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "segmentBytes": {
+        "type": "integer"
+      },
+      "service": {
+        "type": "string"
+      },
+      "sessionTtlSeconds": {
+        "type": "integer"
+      },
+      "template": {}
+    },
+    "type": "object"
+  },
+  "RemnacustCoreXMC": {
+    "additionalProperties": true,
+    "properties": {
+      "hostname": {
+        "type": "string"
+      },
+      "password": {
+        "type": "string"
+      },
+      "profiles": {
+        "items": {
+          "$ref": "#/definitions/RemnacustCoreXMCProfile"
+        },
+        "type": "array"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreXMCProfile": {
+    "additionalProperties": true,
+    "properties": {
+      "texturesSignature": {
+        "type": "string"
+      },
+      "texturesValue": {
+        "type": "string"
+      },
+      "username": {
+        "type": "string"
+      },
+      "uuid": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreXeraDownlinkPaddingConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "blockBytes": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "budgetPercent": {
+        "type": "integer"
+      },
+      "burstBytes": {
+        "type": "integer"
+      },
+      "bytes": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "header": {
+        "type": "string"
+      },
+      "token": {
+        "type": "string"
+      },
+      "uplink": {
+        "type": "boolean"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreXeraHTTPConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "customDownlinkPadding": {
+        "$ref": "#/definitions/RemnacustCoreXeraDownlinkPaddingConfig"
+      },
+      "downloadSettings": {
+        "$ref": "#/definitions/RemnacustCoreStreamConfig"
+      },
+      "extra": {},
+      "headers": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": "object"
+      },
+      "host": {
+        "type": "string"
+      },
+      "mode": {
+        "type": "string"
+      },
+      "noGRPCHeader": {
+        "type": "boolean"
+      },
+      "noSSEHeader": {
+        "type": "boolean"
+      },
+      "path": {
+        "type": "string"
+      },
+      "scMaxBufferedPosts": {
+        "type": "integer"
+      },
+      "scMaxEachPostBytes": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "scMinPostsIntervalMs": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "scStreamUpServerSecs": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "seqKey": {
+        "type": "string"
+      },
+      "seqPlacement": {
+        "type": "string"
+      },
+      "serverMaxBufferedBytes": {
+        "type": "integer"
+      },
+      "serverMaxHeaderBytes": {
+        "type": "integer"
+      },
+      "serverMaxSessions": {
+        "type": "integer"
+      },
+      "sessionIDKey": {
+        "type": "string"
+      },
+      "sessionIDLength": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "sessionIDPlacement": {
+        "type": "string"
+      },
+      "sessionIDTable": {
+        "type": "string"
+      },
+      "uplinkChunkSize": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "uplinkDataKey": {
+        "type": "string"
+      },
+      "uplinkDataPlacement": {
+        "type": "string"
+      },
+      "uplinkHTTPMethod": {
+        "type": "string"
+      },
+      "xPaddingBytes": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "xPaddingHeader": {
+        "type": "string"
+      },
+      "xPaddingKey": {
+        "type": "string"
+      },
+      "xPaddingMethod": {
+        "type": "string"
+      },
+      "xPaddingObfsMode": {
+        "type": "boolean"
+      },
+      "xPaddingPlacement": {
+        "type": "string"
+      },
+      "xmux": {
+        "$ref": "#/definitions/RemnacustCoreXeraMuxConfig"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreXeraMuxConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "cMaxReuseTimes": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "hKeepAlivePeriod": {
+        "type": "integer"
+      },
+      "hMaxRequestTimes": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "hMaxReusableSecs": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "maxConcurrency": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "maxConnections": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreXicmp": {
+    "additionalProperties": true,
+    "properties": {
+      "dgram": {
+        "type": "boolean"
+      },
+      "ips": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreXmuxConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "cMaxReuseTimes": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "hKeepAlivePeriod": {
+        "type": "integer"
+      },
+      "hMaxRequestTimes": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "hMaxReusableSecs": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "maxConcurrency": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
+      "maxConnections": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCorestrategyEmptyConfig": {
+    "additionalProperties": true,
+    "properties": {},
+    "type": "object"
+  },
+  "RemnacustCorestrategyLeastLoadConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "baselines": {
+        "items": {},
+        "type": "array"
+      },
+      "costs": {
+        "items": {},
+        "type": "array"
+      },
+      "expected": {
+        "type": "integer"
+      },
+      "maxRTT": {},
+      "tolerance": {
+        "type": "number"
+      }
+    },
+    "type": "object"
+  }
+}

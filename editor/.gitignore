@@ -1,0 +1,38 @@
+*.wasm
+*.js
+assets
+*.schema.json
+*.schema.cn.json
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Embedded resources required to rebuild the configuration editor.
+!/go/assets/
+!/go/assets/geoip.dat
+!/go/assets/geosite.dat
+!/go/assets/remnacust-config-types.json
+
+
