@@ -70,4 +70,14 @@ p = target / 'proxy/vless/outbound/outbound.go'
 s = p.read_text(encoding='utf-8').replace('\n\tproxyman "github.com/xtls/xray-core/app/proxyman/outbound"', '')
 s = s.replace('session.FullHandlerFromContext(ctx).(*proxyman.Handler)', 'nil')
 p.write_text(s, encoding='utf-8', newline='\n')
+# Browser geodata is embedded and served through NewFileReader. Keep the native
+# asset path checks, but avoid os.Stat, which is unavailable in js/wasm.
+p = target / 'common/platform/filesystem/file.go'
+s = p.read_text(encoding='utf-8')
+anchor = '\tpath := platform.GetAssetLocation(local)\n'
+if s.count(anchor) != 1:
+    raise RuntimeError('Filesystem asset resolver changed; review the WASM adaptation')
+s = s.replace('\n\t"path/filepath"', '\n\t"path/filepath"\n\t"runtime"')
+s = s.replace(anchor, anchor + '\tif runtime.GOOS == "js" {\n\t\treturn path, nil, nil\n\t}\n')
+p.write_text(s, encoding='utf-8', newline='\n')
 print(target)

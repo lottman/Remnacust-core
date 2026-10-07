@@ -1,6 +1,9 @@
 from pathlib import Path
 import json, sys
-ROOT=Path(__file__).resolve().parents[3]
+CORE=Path(__file__).resolve().parents[2]
+ROOT=Path(sys.argv[2]).resolve() if len(sys.argv) > 2 else CORE.parent / 'Remnacust-panel/panel/frontend'
+if not (ROOT/'package.json').is_file():
+    raise SystemExit('Pass the Remnacust frontend directory as the second argument')
 def write(name,data):
     (ROOT/name).write_text(data,encoding='utf-8',newline='\n')
 # Preserve localized documentation while adding the exact current Go config fields.
@@ -17,7 +20,7 @@ def mask_conditions(mapping):
 tcp={'header-custom':'HeaderCustomTCP','fragment':'FragmentMask','sudoku':'Sudoku','xmc':'XMC'}
 udp={'header-custom':'HeaderCustomUDP','mkcp-legacy':'MkcpLegacy','noise':'NoiseMask','salamander':'Salamander','sudoku':'Sudoku','xdns':'XDNS','xicmp':'Xicmp','realm':'Realm','udphop':'UDPHop'}
 for language in ['', '.cn']:
-    name='remnwave/frontend-3.4.4-xera/public/assets/xray.schema'+language+'.json'
+    name='public/assets/xray.schema'+language+'.json'
     schema=json.loads((ROOT/name).read_text(encoding='utf-8-sig'))
     defs=schema['definitions']; defs.update(definitions)
     defs.pop('RemnacustCoreOlcrtcConfig',None)
@@ -62,7 +65,9 @@ for language in ['', '.cn']:
             defs[old].setdefault('properties',{}).setdefault(key,value)
     # The current native core does not implement this old TLS bypass.
     defs['TLSObject']['properties'].pop('allowInsecure',None)
-    schema['x-remnacust-upstream']={'version':'v26.9.30','commit':'b26a91de4f3294e26a0ad0a970b81a386a41f789'}
+    source=json.loads((CORE/'xray/REMNACUST-UPSTREAM.json').read_text(encoding='utf-8'))
+    schema['x-remnacust-upstream']={'version':source['upstreamVersion'],'commit':source['upstreamCommit'],
+        'patchCommit':source.get('upstreamPatchCommit'),'coreVersion':source['version']}
     # Fail immediately on unresolved Go or original schema references.
     def check(value):
         if isinstance(value,dict):

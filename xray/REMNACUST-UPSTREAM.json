@@ -15,7 +15,51 @@
   ],
   "compatibility": [
     "legacy finalmask.quicParams.udpHop",
-    "legacy TUN autoSystemDNS"
+    "legacy TUN autoSystemDNS",
+    "legacy XDNS name/type/settings.addr"
   ],
-  "version": "1.1.1"
+  "version": "1.1.2",
+  "upstreamPatchCommit": "7da5dae6502b787fc6d903863e9a6c5043d107a2",
+  "upstreamPatches": [
+    {
+      "commit": "9d9a7a1c00d1af4a9d4147ca2cb56289fd95fd3b",
+      "description": "gRPC client: Fix redial with the first request's canceled context (#6877)"
+    },
+    {
+      "commit": "e0bae21201ce6c209cc3dd9fb8194f045c176349",
+      "description": "WireGuard inbound: Reply fake pong to ICMP ping (#6855)"
+    },
+    {
+      "commit": "08775afd6543ea9c979b9484f2fcd6ce132526d8",
+      "description": "WireGuard inbound: Reduce memory held by idle UDP flows (#6856)"
+    },
+    {
+      "commit": "00cde72a9b95105123255b035df357d4c8159ff7",
+      "description": "Test: Fix process leaks when retrying scenario tests (#6863)"
+    },
+    {
+      "commit": "eddad37c69114e5ca31564a3ba5b093781f78cab",
+      "description": "XDNS finalmask: Fix resolver close deadlock and socket leaks (#7089)"
+    },
+    {
+      "commit": "92f7e72490d44685cf8758b0fc381875d96476df",
+      "description": "WireGuard kernelTun: Fix IPv6 table index allocation when the first table is occupied (#6881)"
+    },
+    {
+      "commit": "5121c28b855c9d7f12deaeb1352116eb490754bb",
+      "description": "QUIC sniffer: Handle zero-filled datagram tails (#6882)"
+    },
+    {
+      "commit": "1e08d48d882bf871833f5bdb509152ebd800242d",
+      "description": "TUN inbound: Start on Windows when IPv6 is disabled system-wide (#6874)"
+    },
+    {
+      "commit": "a3c6cc6aa81f6a6cbe3d9181b408759e680b346d",
+      "description": "XDNS finalmask: Default values for `types`; `name`->`names`; `type`+`addr`->`addrs` (#7090)"
+    },
+    {
+      "commit": "7da5dae6502b787fc6d903863e9a6c5043d107a2",
+      "description": "Mux client: Fix a race condition between Dispatch and SessionManager.Close (#6871)"
+    }
+  ]
 }

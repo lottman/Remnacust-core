@@ -2,7 +2,7 @@
 
 Форк Xray-core для Remnacust. Обслуживает клиентские соединения, выполняет маршрутизацию и применяет политики хостов, тегов и устройств. Здесь также находятся исходники редактора и браузерной проверки конфигураций.
 
-**Версия 1.1.1** · **Основа: Xray-core 26.9.30** · [Панель](https://github.com/lottman/Remnacust-panel) · [Нода](https://github.com/lottman/Remnacust-node)
+**Версия 1.1.2** · **Основа: Xray-core 26.9.30** · [Панель](https://github.com/lottman/Remnacust-panel) · [Нода](https://github.com/lottman/Remnacust-node)
 
 Имя Go-модуля `github.com/xtls/xray-core` сохранено для совместимости импортов. Исходники зависимости olcRTC находятся в `vendor/olcrtc`; отдельная загрузка из файлового менеджера не нужна.
 
@@ -15,12 +15,12 @@ git clone https://github.com/lottman/Remnacust-core.git
 cd Remnacust-core/xray
 mkdir -p bin
 CGO_ENABLED=0 go build -trimpath \
-  -ldflags '-s -w -X github.com/xtls/xray-core/core.build=Remnacust-1.1.1' \
+  -ldflags '-s -w -X github.com/xtls/xray-core/core.build=Remnacust-1.1.2' \
   -o bin/xray ./main
 ./bin/xray version
 ```
 
-В Windows задайте `$env:CGO_ENABLED='0'` и укажите `bin/xray.exe`. Готовая установка ноды через [установщик](https://github.com/lottman/Remnacust-installer) собирает ядро вместе с агентом.
+В Windows задайте `$env:CGO_ENABLED='0'` и укажите `bin/xray.exe`. При установке ноды [установщик](https://github.com/lottman/Remnacust-installer) скачивает готовый Docker-образ с агентом и ядром; сборки на сервере нет.
 
 ## Проверка и запуск
 
@@ -52,6 +52,8 @@ go test ./infra/conf ./transport/internet/xerahttp ./app/dispatcher ./app/proxym
 ```
 
 Версия upstream и дополнительные изменения записаны в [REMNACUST-UPSTREAM.json](xray/REMNACUST-UPSTREAM.json). [Поддержка](https://t.me/lottman).
+
+В 1.1.2 включены исправления официальной ветки Xray по состоянию на коммит `7da5dae6502b787fc6d903863e9a6c5043d107a2`: gRPC, Mux, QUIC, WireGuard, TUN и XDNS. Для XDNS принимаются как новые поля `names`/`addrs`, так и прежние `name`/`type`/`settings.addr`.
 
 ## Лицензии
 

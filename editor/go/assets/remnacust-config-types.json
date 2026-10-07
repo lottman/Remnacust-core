@@ -3466,6 +3466,12 @@
       "name": {
         "type": "string"
       },
+      "names": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
       "types": {
         "items": {
           "type": "integer"
@@ -3478,26 +3484,22 @@
   "RemnacustCoreXDNSResolver": {
     "additionalProperties": true,
     "properties": {
-      "settings": {},
+      "addrs": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "settings": {
+        "additionalProperties": true,
+        "properties": {
+          "addr": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "type": {
-        "type": "string"
-      }
-    },
-    "type": "object"
-  },
-  "RemnacustCoreXDNSResolverTCP": {
-    "additionalProperties": true,
-    "properties": {
-      "addr": {
-        "type": "string"
-      }
-    },
-    "type": "object"
-  },
-  "RemnacustCoreXDNSResolverUDP": {
-    "additionalProperties": true,
-    "properties": {
-      "addr": {
         "type": "string"
       }
     },
