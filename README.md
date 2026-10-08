@@ -55,6 +55,10 @@ go test ./infra/conf ./transport/internet/xerahttp ./app/dispatcher ./app/proxym
 
 В 1.1.2 включены исправления официальной ветки Xray по состоянию на коммит `7da5dae6502b787fc6d903863e9a6c5043d107a2`: gRPC, Mux, QUIC, WireGuard, TUN и XDNS. Для XDNS принимаются как новые поля `names`/`addrs`, так и прежние `name`/`type`/`settings.addr`.
 
+## Xera HTTP
+
+Xera HTTP — форк транспорта XHTTP (SplitHTTP) из Xray-core, с собственными настройками `network: "xera-http"` и `xeraHttpSettings`. Для соединения его должны поддерживать ядра обеих сторон. Настройка, отличия, режимы и переход с XHTTP описаны в [руководстве панели](https://github.com/lottman/Remnacust-panel/blob/main/panel/frontend/public/documentation/guide-ru.md#транспорт-xera-http).
+
 ## Лицензии
 
 Ядро сохраняет [MPL-2.0](xray/LICENSE) и авторство Xray-core. Редактор и зависимости сохраняют собственные лицензии. Подробности: [NOTICE.md](NOTICE.md).
