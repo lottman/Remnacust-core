@@ -4,12 +4,58 @@ package dispatcher
 
 import (
 	"context"
+	"net"
 	"testing"
+	"time"
 
 	"github.com/xtls/xray-core/common/buf"
+	"github.com/xtls/xray-core/common/session"
 	"github.com/xtls/xray-core/transport"
 	"github.com/xtls/xray-core/transport/pipe"
 )
+
+func TestRevokeUserLinksClosesAuthenticatedRawConnection(t *testing.T) {
+	connA, peerA := net.Pipe()
+	connB, peerB := net.Pipe()
+	t.Cleanup(func() {
+		connA.Close()
+		peerA.Close()
+		connB.Close()
+		peerB.Close()
+		AllowUserLinks("79~aaaaaaaaaaaaaaaaaaaaaaaa")
+	})
+	ctxA, cancelA := context.WithCancel(session.ContextWithInbound(context.Background(), &session.Inbound{Conn: connA}))
+	defer cancelA()
+	ctxB, cancelB := context.WithCancel(session.ContextWithInbound(context.Background(), &session.Inbound{Conn: connB}))
+	defer cancelB()
+	trackUserLink(ctxA, "79~aaaaaaaaaaaaaaaaaaaaaaaa", nil, nil)
+	trackUserLink(ctxB, "79~bbbbbbbbbbbbbbbbbbbbbbbb", nil, nil)
+	RevokeUserLinks("79~aaaaaaaaaaaaaaaaaaaaaaaa")
+	peerA.SetReadDeadline(time.Now().Add(time.Second))
+	if _, err := peerA.Read(make([]byte, 1)); err == nil {
+		t.Fatal("revoked raw connection remained open")
+	} else if timeout, ok := err.(net.Error); ok && timeout.Timeout() {
+		t.Fatal("revocation did not close the raw connection")
+	}
+	peerB.SetReadDeadline(time.Now().Add(time.Second))
+	go connB.Write([]byte{42})
+	data := make([]byte, 1)
+	if n, err := peerB.Read(data); err != nil || n != 1 || data[0] != 42 {
+		t.Fatalf("other authenticated connection interrupted: %v", err)
+	}
+	// The guard must also close a connection accepted just before removal.
+	raceConn, racePeer := net.Pipe()
+	defer raceConn.Close()
+	defer racePeer.Close()
+	ctx := session.ContextWithInbound(context.Background(), &session.Inbound{Conn: raceConn})
+	trackUserLink(ctx, "79~aaaaaaaaaaaaaaaaaaaaaaaa", nil, nil)
+	racePeer.SetReadDeadline(time.Now().Add(time.Second))
+	if _, err := racePeer.Read(make([]byte, 1)); err == nil {
+		t.Fatal("late accepted raw connection remained open")
+	} else if timeout, ok := err.(net.Error); ok && timeout.Timeout() {
+		t.Fatal("late accepted connection was not closed")
+	}
+}
 
 func TestRevokeUserLinksIsSelective(t *testing.T) {
 	ctxA, cancelA := context.WithCancel(context.Background())

@@ -2,7 +2,7 @@
 
 Форк Xray-core для Remnacust. Обслуживает клиентские соединения, выполняет маршрутизацию и применяет политики хостов, тегов и устройств. Здесь также находятся исходники редактора и браузерной проверки конфигураций.
 
-**Версия 1.1.2** · **Основа: Xray-core 26.9.30** · [Панель](https://github.com/lottman/Remnacust-panel) · [Нода](https://github.com/lottman/Remnacust-node)
+**Версия 1.1.3** · **Основа: Xray-core 26.9.30** · [Панель](https://github.com/lottman/Remnacust-panel) · [Нода](https://github.com/lottman/Remnacust-node)
 
 Имя Go-модуля `github.com/xtls/xray-core` сохранено для совместимости импортов. Исходники зависимости olcRTC находятся в `vendor/olcrtc`; отдельная загрузка из файлового менеджера не нужна.
 
@@ -15,7 +15,7 @@ git clone https://github.com/lottman/Remnacust-core.git
 cd Remnacust-core/xray
 mkdir -p bin
 CGO_ENABLED=0 go build -trimpath \
-  -ldflags '-s -w -X github.com/xtls/xray-core/core.build=Remnacust-1.1.2' \
+  -ldflags '-s -w -X github.com/xtls/xray-core/core.build=Remnacust-1.1.3' \
   -o bin/xray ./main
 ./bin/xray version
 ```
@@ -62,3 +62,5 @@ Xera HTTP — форк транспорта XHTTP (SplitHTTP) из Xray-core, с
 ## Лицензии
 
 Ядро сохраняет [MPL-2.0](xray/LICENSE) и авторство Xray-core. Редактор и зависимости сохраняют собственные лицензии. Подробности: [NOTICE.md](NOTICE.md).
+
+В 1.1.3 отзыв устройства закрывает и уже открытый поток, включая передачу, обходящую внутренние буферы. Соединения выбираются по авторизованному идентификатору, а не по IP: другие устройства за тем же NAT остаются подключёнными. Повторное разрешение устройства снимает запрет новых подключений. Этот сценарий проверяется настоящими VLESS-соединениями в CI.

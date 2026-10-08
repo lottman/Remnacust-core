@@ -8,12 +8,24 @@ import (
 	"time"
 
 	"github.com/xtls/xray-core/common"
+	"github.com/xtls/xray-core/common/net"
+	"github.com/xtls/xray-core/common/session"
 	"github.com/xtls/xray-core/transport"
 )
 
 type userLink struct {
 	inbound  *transport.Link
 	outbound *transport.Link
+	conn     net.Conn
+}
+
+func (link *userLink) interrupt() {
+	// Splice can bypass the pipes; close only this authenticated connection.
+	if link.conn != nil {
+		_ = link.conn.Close()
+	}
+	interruptLink(link.inbound)
+	interruptLink(link.outbound)
 }
 
 var activeUserLinks = struct {
@@ -38,11 +50,13 @@ func trackUserLink(ctx context.Context, email string, inbound, outbound *transpo
 		return
 	}
 	entry := &userLink{inbound: inbound, outbound: outbound}
+	if metadata := session.InboundFromContext(ctx); metadata != nil {
+		entry.conn = metadata.Conn
+	}
 	activeUserLinks.Lock()
 	if until, blocked := activeUserLinks.revoked[email]; blocked && time.Now().Before(until) {
 		activeUserLinks.Unlock()
-		interruptLink(inbound)
-		interruptLink(outbound)
+		entry.interrupt()
 		return
 	}
 	if activeUserLinks.byEmail[email] == nil {
@@ -72,8 +86,7 @@ func RevokeUserLinks(email string) {
 	}
 	activeUserLinks.Unlock()
 	for _, link := range links {
-		interruptLink(link.inbound)
-		interruptLink(link.outbound)
+		link.interrupt()
 	}
 	time.AfterFunc(2*time.Minute, func() {
 		activeUserLinks.Lock()
