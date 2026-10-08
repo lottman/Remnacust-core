@@ -16,4 +16,5 @@ jobs:
           cache-dependency-path: xray/go.sum
       - run: go test ./infra/conf ./transport/internet/xerahttp ./app/dispatcher ./app/proxyman/command
       - run: CGO_ENABLED=0 go build -trimpath -o /tmp/remnacust-xray ./main
+      - run: python3 ../tests/version.test.py /tmp/remnacust-xray
       - run: python3 ../tests/device-revoke.integration.py /tmp/remnacust-xray
