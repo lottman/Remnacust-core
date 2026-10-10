@@ -1,6 +1,6 @@
 module github.com/xtls/xray-core
 
-go 1.27
+go 1.27.2
 
 require (
 	github.com/apernet/quic-go v0.61.1-0.20260806010916-184d081eef3e
@@ -25,7 +25,7 @@ require (
 	go4.org/netipx v0.0.0-20231129151722-fdeea329fbba
 	golang.org/x/crypto v0.57.0
 	golang.org/x/exp v0.0.0-20260603202125-055de637280b
-	golang.org/x/net v0.59.0
+	golang.org/x/net v0.60.0
 	golang.org/x/sync v0.23.0
 	golang.org/x/sys v0.48.0
 	golang.org/x/time v0.15.0
