@@ -28,7 +28,7 @@ require (
 	golang.org/x/crypto v0.57.0
 	golang.org/x/crypto/x509roots/fallback v0.0.0-20261005185213-c3db4df58582
 	golang.org/x/exp v0.0.0-20260603202125-055de637280b
-	golang.org/x/net v0.59.0
+	golang.org/x/net v0.60.0
 	golang.org/x/sync v0.23.0
 	golang.org/x/sys v0.48.0
 	golang.org/x/time v0.15.0
