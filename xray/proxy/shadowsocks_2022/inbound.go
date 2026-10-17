@@ -92,7 +92,7 @@ func (i *Inbound) Process(ctx context.Context, network net.Network, connection s
 func (i *Inbound) processTCP(ctx context.Context, conn net.Conn, dispatcher routing.Dispatcher) error {
 	defer conn.Close()
 
-	sessionPolicy := i.policyManager.ForLevel(0)
+	sessionPolicy := core.PolicyForContext(ctx, i.policyManager).ForLevel(0)
 	if err := conn.SetReadDeadline(time.Now().Add(sessionPolicy.Timeouts.Handshake)); err != nil {
 		return errors.New("unable to set read deadline").Base(err)
 	}
@@ -142,7 +142,7 @@ func (i *Inbound) processTCP(ctx context.Context, conn net.Conn, dispatcher rout
 		}
 	}
 
-	return TransportTCP(ctx, i.policyManager.ForLevel(uint32(i.user.Level)), reader, writer, link)
+	return TransportTCP(ctx, core.PolicyForContext(ctx, i.policyManager).ForLevel(uint32(i.user.Level)), reader, writer, link)
 }
 
 func (i *Inbound) processUDP(ctx context.Context, conn stat.Connection, dispatcher routing.Dispatcher) error {
@@ -169,7 +169,7 @@ func (i *Inbound) processUDP(ctx context.Context, conn stat.Connection, dispatch
 				}
 				sessionItem.Unlock()
 			}
-			link, err := sessionItem.EnsureLink(ctx, conn, decoded.Destination, dispatcher, i.policyManager, func(dest net.Destination, payload []byte) ([]byte, error) {
+			link, err := sessionItem.EnsureLink(ctx, conn, decoded.Destination, dispatcher, core.PolicyForContext(ctx, i.policyManager), func(dest net.Destination, payload []byte) ([]byte, error) {
 				return i.udpCodec.EncodeServerPacket(decoded.SessionID, dest, payload)
 			})
 			if err != nil {

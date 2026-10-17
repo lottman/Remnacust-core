@@ -129,7 +129,9 @@ func (s *ClassicNameServer) HandleResponse(ctx context.Context, packet *udp_prot
 			newMsg.Additionals = append(newMsg.Additionals, *opt)
 			newMsg.ID = s.newReqID()
 			newReq.msg = &newMsg
-			s.addPendingRequest(&newReq)
+			if !s.addPendingRequest(&newReq) {
+				return
+			}
 			b, _ := dns.PackMessage(newReq.msg)
 			s.udpServer.Dispatch(toDnsContext(newReq.ctx, s.address.String()), *s.address, b)
 			return
@@ -143,13 +145,29 @@ func (s *ClassicNameServer) newReqID() uint16 {
 	return uint16(atomic.AddUint32(&s.reqID, 1))
 }
 
-func (s *ClassicNameServer) addPendingRequest(req *udpDnsRequest) {
+func (s *ClassicNameServer) addPendingRequest(req *udpDnsRequest) bool {
+	s.cacheController.lifecycle.Lock()
+	defer s.cacheController.lifecycle.Unlock()
+	if s.cacheController.lifetime.Err() != nil {
+		return false
+	}
 	s.Lock()
 	id := req.msg.ID
 	req.expire = time.Now().Add(time.Second * 8)
 	s.requests[id] = req
 	s.Unlock()
 	common.Must(s.requestsCleanup.Start())
+	return true
+}
+
+func (s *ClassicNameServer) Close() error {
+	_ = s.cacheController.Close()
+	_ = s.requestsCleanup.Close()
+	s.udpServer.RemoveRay()
+	s.Lock()
+	s.requests = nil
+	s.Unlock()
+	return nil
 }
 
 // getCacheController implements CachedNameserver.
@@ -180,7 +198,9 @@ func (s *ClassicNameServer) sendQuery(ctx context.Context, noResponseErrCh chan<
 			dnsRequest: *req,
 			ctx:        ctx,
 		}
-		s.addPendingRequest(udpReq)
+		if !s.addPendingRequest(udpReq) {
+			return
+		}
 		b, err := dns.PackMessage(req.msg)
 		if err != nil {
 			errors.LogErrorInner(ctx, err, "failed to pack dns query")

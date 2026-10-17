@@ -83,6 +83,9 @@ func scheduleHTTPClientCleanup() {
 }
 
 func getHTTPClient(ctx context.Context, dest net.Destination, streamSettings *internet.MemoryStreamConfig) (DialerClient, *XmuxClient) {
+	if streamSettings.IsClosed() {
+		return &retiredDialer{}, nil
+	}
 	realityConfig := reality.ConfigFromStreamSettings(streamSettings)
 
 	if browser_dialer.HasBrowserDialer() && realityConfig == nil {
@@ -91,6 +94,9 @@ func getHTTPClient(ctx context.Context, dest net.Destination, streamSettings *in
 
 	globalDialerAccess.Lock()
 	defer globalDialerAccess.Unlock()
+	if streamSettings.IsClosed() {
+		return &retiredDialer{}, nil
+	}
 
 	if globalDialerMap == nil {
 		globalDialerMap = make(map[dialerConf]*XmuxManager)
@@ -110,6 +116,21 @@ func getHTTPClient(ctx context.Context, dest net.Destination, streamSettings *in
 		xmuxManager = NewXmuxManager(xmuxConfig, func() XmuxConn {
 			return createHTTPClient(dest, streamSettings)
 		})
+		if !streamSettings.AddCloseHook(func() {
+			globalDialerAccess.Lock()
+			if globalDialerMap[key] == xmuxManager {
+				delete(globalDialerMap, key)
+			}
+			clients := xmuxManager.xmuxClients
+			xmuxManager.xmuxClients = nil
+			globalDialerAccess.Unlock()
+			for _, client := range clients {
+				client.NotUsed.Store(true)
+				client.maybeClose()
+			}
+		}) {
+			return &retiredDialer{}, nil
+		}
 		globalDialerMap[key] = xmuxManager
 	}
 

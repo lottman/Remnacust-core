@@ -24,12 +24,28 @@ func HubReceiveOriginalDestination(r bool) HubOption {
 	}
 }
 
+// The caller pairs AcquirePacketPeer with each native flow's real Close.
+func HubTrackNativeFlows() HubOption {
+	return func(h *Hub) { h.trackNativeFlows = true }
+}
+
+func HubTrackNativeSessions(protocol string, key func([]byte) string) HubOption {
+	return func(h *Hub) {
+		h.trackNativeFlows = true
+		h.sessionProtocol = protocol
+		h.sessionKey = key
+	}
+}
+
 type Hub struct {
-	conn         net.PacketConn
-	udpConn      *net.UDPConn
-	cache        chan *udp.Packet
-	capacity     int
-	recvOrigDest bool
+	conn             net.PacketConn
+	udpConn          *net.UDPConn
+	cache            chan *udp.Packet
+	capacity         int
+	recvOrigDest     bool
+	trackNativeFlows bool
+	sessionProtocol  string
+	sessionKey       func([]byte) string
 }
 
 func ListenUDP(ctx context.Context, address net.Address, port net.Port, streamSettings *internet.MemoryStreamConfig, options ...HubOption) (*Hub, error) {
@@ -58,7 +74,18 @@ func ListenUDP(ctx context.Context, address net.Address, port net.Port, streamSe
 	}
 
 	var err error
-	if streamSettings.FinalMask != nil {
+	if streamSettings == nil {
+		streamSettings = &internet.MemoryStreamConfig{}
+	}
+	if !hub.recvOrigDest && hub.trackNativeFlows {
+		if hub.sessionProtocol != "" {
+			hub.conn, err = internet.ListenProfileSessionPacket(ctx, &net.UDPAddr{IP: address.IP(), Port: int(port)}, streamSettings, hub.sessionProtocol, hub.sessionKey)
+		} else {
+			hub.conn, err = internet.ListenProfileUDPPacket(ctx, &net.UDPAddr{IP: address.IP(), Port: int(port)}, streamSettings)
+		}
+	} else if err = internet.CheckPacketListenerProfile(ctx); err != nil {
+		return nil, err
+	} else if streamSettings.FinalMask != nil {
 		hub.conn, err = streamSettings.FinalMask.ListenPacket(ctx, &net.UDPAddr{IP: address.IP(), Port: int(port)})
 	} else {
 		hub.conn, err = internet.ListenSystemPacket(ctx, &net.UDPAddr{IP: address.IP(), Port: int(port)}, streamSettings.SocketSettings)
@@ -149,6 +176,24 @@ func (h *Hub) start() {
 // Addr implements net.Listener.
 func (h *Hub) Addr() net.Addr {
 	return h.conn.LocalAddr()
+}
+
+func (h *Hub) AcquirePacketPeer(source net.Destination) (func(), error) {
+	if managed, ok := h.conn.(interface {
+		AcquirePacketPeer(net.Addr) (func(), error)
+	}); ok {
+		return managed.AcquirePacketPeer(&net.UDPAddr{IP: source.Address.IP(), Port: int(source.Port)})
+	}
+	return func() {}, nil
+}
+
+func (h *Hub) AcquirePacketSession(source net.Destination, session string) (func(), error) {
+	if managed, ok := h.conn.(interface {
+		AcquirePacketSession(net.Addr, string) (func(), error)
+	}); ok {
+		return managed.AcquirePacketSession(&net.UDPAddr{IP: source.Address.IP(), Port: int(source.Port)}, session)
+	}
+	return func() {}, nil
 }
 
 func (h *Hub) Receive() <-chan *udp.Packet {

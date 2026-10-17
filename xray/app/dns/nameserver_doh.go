@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 
 	utls "github.com/refraction-networking/utls"
@@ -30,10 +31,13 @@ import (
 // which is compatible with traditional dns over udp(RFC1035),
 // thus most of the DOH implementation is copied from udpns.go
 type DoHNameServer struct {
-	cacheController *CacheController
-	httpClient      *http.Client
-	dohURL          string
-	clientIP        net.IP
+	connectionsAccess sync.Mutex
+	connections       map[*dohConnection]struct{}
+	closed            bool
+	cacheController   *CacheController
+	httpClient        *http.Client
+	dohURL            string
+	clientIP          net.IP
 }
 
 // NewDoHNameServer creates DOH/DOHL client object for remote/local resolving.
@@ -54,6 +58,11 @@ func NewDoHNameServer(url *url.URL, dispatcher routing.Dispatcher, h2c bool, dis
 			IdleConnTimeout: net.ConnIdleTimeout,
 			ReadIdleTimeout: net.ChromeH2KeepAlivePeriod,
 			DialTLSContext: func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
+				ctx, cancel := s.cacheController.queryContext(ctx)
+				defer cancel()
+				if err := ctx.Err(); err != nil {
+					return nil, err
+				}
 				dest, err := net.ParseDestination(network + ":" + addr)
 				if err != nil {
 					return nil, err
@@ -87,7 +96,7 @@ func NewDoHNameServer(url *url.URL, dispatcher routing.Dispatcher, h2c bool, dis
 						cnc.ConnectionOnClose(cc),
 					)
 				} else {
-					log.Record(&log.AccessMessage{
+					log.RecordContext(ctx, &log.AccessMessage{
 						From:   "DNS",
 						To:     s.dohURL,
 						Status: log.AccessAccepted,
@@ -101,10 +110,11 @@ func NewDoHNameServer(url *url.URL, dispatcher routing.Dispatcher, h2c bool, dis
 				if !h2c {
 					conn = utls.UClient(conn, &utls.Config{ServerName: url.Hostname()}, utls.HelloChrome_Auto)
 					if err := conn.(*utls.UConn).HandshakeContext(ctx); err != nil {
+						_ = conn.Close()
 						return nil, err
 					}
 				}
-				return conn, nil
+				return s.trackConnection(conn)
 			},
 		},
 	}

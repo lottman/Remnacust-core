@@ -59,7 +59,7 @@ for language in ['', '.cn']:
     root=defs[schema['$ref'].split('/')[-1]]
     for key,value in definitions['RemnacustCoreConfig']['properties'].items():
         root.setdefault('properties',{}).setdefault(key,value)
-    for old,new in [('DnsObject','DNSConfig'),('TLSObject','TLSConfig'),('InboundObject','InboundDetourConfig'),('OutboundObject','OutboundDetourConfig'),('MuxObject','MuxConfig'),('SocketObject','SocketConfig'),('SniffingObject','SniffingConfig')]:
+    for old,new in [('DnsObject','DNSConfig'),('RoutingObject','RouterConfig'),('TLSObject','TLSConfig'),('InboundObject','InboundDetourConfig'),('OutboundObject','OutboundDetourConfig'),('MuxObject','MuxConfig'),('SocketObject','SocketConfig'),('SniffingObject','SniffingConfig')]:
         if old not in defs or 'RemnacustCore'+new not in definitions: continue
         for key,value in definitions['RemnacustCore'+new]['properties'].items():
             defs[old].setdefault('properties',{}).setdefault(key,value)

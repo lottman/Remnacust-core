@@ -19,13 +19,15 @@ type Manager struct {
 	access           sync.RWMutex
 	untaggedHandlers []inbound.Handler
 	taggedHandlers   map[string]inbound.Handler
+	retiredHandlers  map[string]inbound.Handler
 	running          bool
 }
 
 // New returns a new Manager for inbound handlers.
 func New(ctx context.Context, config *proxyman.InboundConfig) (*Manager, error) {
 	m := &Manager{
-		taggedHandlers: make(map[string]inbound.Handler),
+		taggedHandlers:  make(map[string]inbound.Handler),
+		retiredHandlers: make(map[string]inbound.Handler),
 	}
 	return m, nil
 }
@@ -42,16 +44,21 @@ func (m *Manager) AddHandler(ctx context.Context, handler inbound.Handler) error
 
 	tag := handler.Tag()
 	if len(tag) > 0 {
-		if _, found := m.taggedHandlers[tag]; found {
+		if _, found := m.taggedHandlers[tag]; found || m.retiredHandlers[tag] != nil {
 			return errors.New("existing tag found: " + tag)
 		}
-		m.taggedHandlers[tag] = handler
-	} else {
-		m.untaggedHandlers = append(m.untaggedHandlers, handler)
 	}
 
 	if m.running {
-		return handler.Start()
+		if err := handler.Start(); err != nil {
+			_ = handler.Close()
+			return err
+		}
+	}
+	if len(tag) > 0 {
+		m.taggedHandlers[tag] = handler
+	} else {
+		m.untaggedHandlers = append(m.untaggedHandlers, handler)
 	}
 
 	return nil
@@ -63,6 +70,9 @@ func (m *Manager) GetHandler(ctx context.Context, tag string) (inbound.Handler, 
 	defer m.access.RUnlock()
 
 	handler, found := m.taggedHandlers[tag]
+	if !found {
+		handler, found = m.retiredHandlers[tag]
+	}
 	if !found {
 		return nil, errors.New("handler not found: ", tag)
 	}
@@ -76,17 +86,20 @@ func (m *Manager) RemoveHandler(ctx context.Context, tag string) error {
 	}
 
 	m.access.Lock()
-	defer m.access.Unlock()
-
-	if handler, found := m.taggedHandlers[tag]; found {
-		if err := handler.Close(); err != nil {
-			errors.LogWarningInner(ctx, err, "failed to close handler ", tag)
-		}
+	handler, found := m.taggedHandlers[tag]
+	if found {
 		delete(m.taggedHandlers, tag)
-		return nil
 	}
-
-	return common.ErrNoClue
+	m.access.Unlock()
+	if !found {
+		return common.ErrNoClue
+	}
+	// Closing a native handler takes the admission barrier; never hold the
+	// registry lock in the reverse order of a runtime commit or shutdown.
+	if err := handler.Close(); err != nil {
+		errors.LogWarningInner(ctx, err, "failed to close handler ", tag)
+	}
+	return nil
 }
 
 // ListHandlers implements inbound.Manager.
@@ -128,17 +141,17 @@ func (m *Manager) Start() error {
 // Close implements common.Closable.
 func (m *Manager) Close() error {
 	m.access.Lock()
-	defer m.access.Unlock()
-
 	m.running = false
-
-	var errs []interface{}
+	handlers := append([]inbound.Handler(nil), m.untaggedHandlers...)
 	for _, handler := range m.taggedHandlers {
-		if err := handler.Close(); err != nil {
-			errs = append(errs, err)
-		}
+		handlers = append(handlers, handler)
 	}
-	for _, handler := range m.untaggedHandlers {
+	for _, handler := range m.retiredHandlers {
+		handlers = append(handlers, handler)
+	}
+	m.access.Unlock()
+	var errs []interface{}
+	for _, handler := range handlers {
 		if err := handler.Close(); err != nil {
 			errs = append(errs, err)
 		}

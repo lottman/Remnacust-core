@@ -225,7 +225,7 @@ func transferResponse(timer signal.ActivityUpdater, session *encoding.ServerSess
 
 // Process implements proxy.Inbound.Process().
 func (h *Handler) Process(ctx context.Context, network net.Network, connection stat.Connection, dispatcher routing.Dispatcher) error {
-	sessionPolicy := h.policyManager.ForLevel(0)
+	sessionPolicy := core.PolicyForContext(ctx, h.policyManager).ForLevel(0)
 	if err := connection.SetReadDeadline(time.Now().Add(sessionPolicy.Timeouts.Handshake)); err != nil {
 		return errors.New("unable to set read deadline").Base(err)
 	}
@@ -241,7 +241,7 @@ func (h *Handler) Process(ctx context.Context, network net.Network, connection s
 	request, err := svrSession.DecodeRequestHeader(reader, isDrain)
 	if err != nil {
 		if errors.Cause(err) != io.EOF {
-			log.Record(&log.AccessMessage{
+			log.RecordContext(ctx, &log.AccessMessage{
 				From:   connection.RemoteAddr(),
 				To:     "",
 				Status: log.AccessRejected,
@@ -273,7 +273,7 @@ func (h *Handler) Process(ctx context.Context, network net.Network, connection s
 	inbound.CanSpliceCopy = 3
 	inbound.User = request.User
 
-	sessionPolicy = h.policyManager.ForLevel(request.User.Level)
+	sessionPolicy = core.PolicyForContext(ctx, h.policyManager).ForLevel(request.User.Level)
 
 	ctx, cancel := context.WithCancel(ctx)
 	timer := signal.CancelAfterInactivity(ctx, cancel, sessionPolicy.Timeouts.ConnectionIdle)

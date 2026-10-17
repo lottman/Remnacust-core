@@ -2,9 +2,11 @@ package cert
 
 import (
 	"context"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -15,8 +17,20 @@ import (
 )
 
 func TestGenerate(t *testing.T) {
-	err := generate(nil, true, true, "ca")
+	name := filepath.Join(t.TempDir(), "ca")
+	err := generate(nil, true, false, name)
 	if err != nil {
+		t.Fatal(err)
+	}
+	certificate, err := os.ReadFile(name + ".crt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	key, err := os.ReadFile(name + ".key")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tls.X509KeyPair(certificate, key); err != nil {
 		t.Fatal(err)
 	}
 }

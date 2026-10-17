@@ -35,6 +35,8 @@ func (s *Subscriber) IsClosed() bool {
 }
 
 type Service struct {
+	lifecycle sync.Mutex
+	closed    bool
 	sync.RWMutex
 	subs  map[string][]*Subscriber
 	ctask *task.Periodic
@@ -62,7 +64,7 @@ func (s *Service) Cleanup() error {
 	}
 
 	for name, subs := range s.subs {
-		newSub := make([]*Subscriber, 0, len(s.subs))
+		newSub := make([]*Subscriber, 0, len(subs))
 		for _, sub := range subs {
 			if !sub.IsClosed() {
 				newSub = append(newSub, sub)
@@ -86,11 +88,36 @@ func (s *Service) Subscribe(name string) *Subscriber {
 		buffer: make(chan interface{}, 16),
 		done:   done.New(),
 	}
+	s.lifecycle.Lock()
+	defer s.lifecycle.Unlock()
+	if s.closed {
+		_ = sub.Close()
+		return sub
+	}
 	s.Lock()
 	s.subs[name] = append(s.subs[name], sub)
 	s.Unlock()
 	common.Must(s.ctask.Start())
 	return sub
+}
+
+func (s *Service) Close() error {
+	s.lifecycle.Lock()
+	defer s.lifecycle.Unlock()
+	if s.closed {
+		return nil
+	}
+	s.closed = true
+	_ = s.ctask.Close()
+	s.Lock()
+	defer s.Unlock()
+	for _, subscribers := range s.subs {
+		for _, subscriber := range subscribers {
+			_ = subscriber.Close()
+		}
+	}
+	s.subs = nil
+	return nil
 }
 
 func (s *Service) Publish(name string, message interface{}) {

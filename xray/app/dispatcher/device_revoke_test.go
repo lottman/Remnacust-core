@@ -10,9 +10,101 @@ import (
 
 	"github.com/xtls/xray-core/common/buf"
 	"github.com/xtls/xray-core/common/session"
+	"github.com/xtls/xray-core/core"
 	"github.com/xtls/xray-core/transport"
 	"github.com/xtls/xray-core/transport/pipe"
 )
+
+func TestRetiredProfileDenySurvivesLateLinksAndClearsAfterClose(t *testing.T) {
+	profile, err := core.NewProfile(context.Background(), &core.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer profile.Close()
+	other, err := core.NewProfile(context.Background(), &core.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer other.Close()
+	const email = "retired-cached-identity"
+	denyRetiredProfileUser(profile, email)
+	ctx, cancel := context.WithCancel(profile.RuntimeContext())
+	defer cancel()
+	if trackUserLink(ctx, email, nil, nil) {
+		t.Fatal("late identity bypassed its retired profile deny")
+	}
+	otherCtx, otherCancel := context.WithCancel(other.RuntimeContext())
+	defer otherCancel()
+	if !trackUserLink(otherCtx, email, nil, nil) {
+		t.Fatal("profile-local deny crossed an unrelated graph")
+	}
+	_ = profile.Close()
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		activeUserLinks.Lock()
+		_, retained := retiredProfileRevocations[profile.RuntimeAccess()]
+		activeUserLinks.Unlock()
+		if !retained {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("closed profile retained its deny registry")
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
+func TestRevokeProfileInboundUserLinksDoesNotCrossSameTagGraphs(t *testing.T) {
+	profileA, err := core.NewProfile(context.Background(), &core.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer profileA.Close()
+	profileB, err := core.NewProfile(context.Background(), &core.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer profileB.Close()
+	generation := core.NewFeatureScope(profileA)
+	defer generation.Close()
+	const email = "same-tag-profile-revocation"
+	var contexts []context.CancelFunc
+	defer func() {
+		for _, cancel := range contexts {
+			cancel()
+		}
+	}()
+	var readers []*pipe.Reader
+	var writers []*pipe.Writer
+	for _, instance := range []*core.Instance{profileA, generation.Instance, profileB} {
+		reader, writer := pipe.New()
+		readers = append(readers, reader)
+		writers = append(writers, writer)
+		defer reader.Interrupt()
+		defer writer.Close()
+		ctx, cancel := context.WithCancel(session.ContextWithInbound(instance.RuntimeContext(), &session.Inbound{Tag: "SAME"}))
+		contexts = append(contexts, cancel)
+		if !trackUserLink(ctx, email, &transport.Link{Reader: reader, Writer: writer}, nil) {
+			t.Fatal("link rejected before revocation")
+		}
+	}
+	RevokeProfileInboundUserLinks(profileA, "SAME", email)
+	for _, reader := range readers[:2] {
+		if _, err := reader.ReadMultiBuffer(); err == nil {
+			t.Fatal("profile or draining generation remained connected")
+		}
+	}
+	payload := buf.New()
+	_, _ = payload.Write([]byte("other graph"))
+	if err := writers[2].WriteMultiBuffer(buf.MultiBuffer{payload}); err != nil {
+		t.Fatal("same-tag sibling was revoked", err)
+	}
+	data, err := readers[2].ReadMultiBuffer()
+	if err != nil || data.Len() != 11 {
+		t.Fatal("same-tag sibling lost traffic", err)
+	}
+	buf.ReleaseMulti(data)
+}
 
 func TestRevokeUserLinksClosesAuthenticatedRawConnection(t *testing.T) {
 	connA, peerA := net.Pipe()
@@ -85,6 +177,34 @@ func TestRevokeUserLinksIsSelective(t *testing.T) {
 	}
 	buf.ReleaseMulti(data)
 	AllowUserLinks("1~aaaaaaaaaaaaaaaaaaaaaaaa")
+}
+
+func TestRevokeInboundUserLinksKeepsSameIdentityOnOtherPort(t *testing.T) {
+	const email = "runtime-selective-port-user"
+	readerA, writerA := pipe.New()
+	readerB, writerB := pipe.New()
+	ctxA, cancelA := context.WithCancel(session.ContextWithInbound(context.Background(), &session.Inbound{Tag: "PORT-A"}))
+	ctxB, cancelB := context.WithCancel(session.ContextWithInbound(context.Background(), &session.Inbound{Tag: "PORT-B"}))
+	defer cancelA()
+	defer cancelB()
+	defer readerB.Interrupt()
+	defer writerB.Close()
+	trackUserLink(ctxA, email, &transport.Link{Reader: readerA, Writer: writerA}, nil)
+	trackUserLink(ctxB, email, &transport.Link{Reader: readerB, Writer: writerB}, nil)
+	RevokeInboundUserLinks("PORT-A", email)
+	if _, err := readerA.ReadMultiBuffer(); err == nil {
+		t.Fatal("removed port identity remained connected")
+	}
+	payload := buf.New()
+	_, _ = payload.Write([]byte("still connected"))
+	if err := writerB.WriteMultiBuffer(buf.MultiBuffer{payload}); err != nil {
+		t.Fatal("the other port was revoked", err)
+	}
+	data, err := readerB.ReadMultiBuffer()
+	if err != nil || data.Len() != int32(len("still connected")) {
+		t.Fatal("the other port lost data", err)
+	}
+	buf.ReleaseMulti(data)
 }
 
 func TestRetireSharedCredentialClosesExistingStream(t *testing.T) {

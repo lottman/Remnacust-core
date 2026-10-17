@@ -149,7 +149,7 @@ func (s *Server) Network() []net.Network {
 func (s *Server) Process(ctx context.Context, network net.Network, conn stat.Connection, dispatcher routing.Dispatcher) error {
 	iConn := stat.TryUnwrapStatsConn(conn)
 
-	sessionPolicy := s.policyManager.ForLevel(0)
+	sessionPolicy := core.PolicyForContext(ctx, s.policyManager).ForLevel(0)
 	if err := conn.SetReadDeadline(time.Now().Add(sessionPolicy.Timeouts.Handshake)); err != nil {
 		return errors.New("unable to set read deadline").Base(err)
 	}
@@ -176,7 +176,7 @@ func (s *Server) Process(ctx context.Context, network net.Network, conn stat.Con
 	if firstLen < 58 || first.Byte(56) != '\r' {
 		// invalid protocol
 		err = errors.New("not trojan protocol")
-		log.Record(&log.AccessMessage{
+		log.RecordContext(ctx, &log.AccessMessage{
 			From:   conn.RemoteAddr(),
 			To:     "",
 			Status: log.AccessRejected,
@@ -189,7 +189,7 @@ func (s *Server) Process(ctx context.Context, network net.Network, conn stat.Con
 		if user == nil {
 			// invalid user, let's fallback
 			err = errors.New("not a valid user")
-			log.Record(&log.AccessMessage{
+			log.RecordContext(ctx, &log.AccessMessage{
 				From:   conn.RemoteAddr(),
 				To:     "",
 				Status: log.AccessRejected,
@@ -208,7 +208,7 @@ func (s *Server) Process(ctx context.Context, network net.Network, conn stat.Con
 
 	clientReader := &ConnReader{Reader: bufferedReader}
 	if err := clientReader.ParseHeader(); err != nil {
-		log.Record(&log.AccessMessage{
+		log.RecordContext(ctx, &log.AccessMessage{
 			From:   conn.RemoteAddr(),
 			To:     "",
 			Status: log.AccessRejected,
@@ -226,7 +226,7 @@ func (s *Server) Process(ctx context.Context, network net.Network, conn stat.Con
 	inbound.Name = "trojan"
 	inbound.CanSpliceCopy = 3
 	inbound.User = user
-	sessionPolicy = s.policyManager.ForLevel(user.Level)
+	sessionPolicy = core.PolicyForContext(ctx, s.policyManager).ForLevel(user.Level)
 
 	if destination.Network == net.Network_UDP { // handle udp request
 		return s.handleUDPPayload(ctx, sessionPolicy, &PacketReader{Reader: clientReader}, &PacketWriter{Writer: conn}, dispatcher)

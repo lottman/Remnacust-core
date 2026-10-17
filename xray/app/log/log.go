@@ -17,6 +17,7 @@ import (
 type Instance struct {
 	sync.RWMutex
 	config       *Config
+	ctx          context.Context
 	accessLogger log.Handler
 	errorLogger  log.Handler
 	active       bool
@@ -39,7 +40,10 @@ func New(ctx context.Context, config *Config) (*Instance, error) {
 		mask4:  m4,
 		mask6:  m6,
 	}
-	log.RegisterHandler(g)
+	if !log.IsIsolatedHandler(ctx) {
+		log.RegisterHandler(g)
+	}
+	g.ctx = log.ContextWithHandler(ctx, g)
 
 	// start logger now,
 	// then other modules will be able to log during initialization
@@ -47,7 +51,7 @@ func New(ctx context.Context, config *Config) (*Instance, error) {
 		return nil, err
 	}
 
-	errors.LogDebug(ctx, "Logger started")
+	errors.LogDebug(g.ctx, "Logger started")
 	return g, nil
 }
 
@@ -147,7 +151,7 @@ func (g *Instance) Severity() log.Severity {
 
 // Close implements common.Closable.Close().
 func (g *Instance) Close() error {
-	errors.LogDebug(context.Background(), "Logger closing")
+	errors.LogDebug(g.ctx, "Logger closing")
 
 	g.Lock()
 	defer g.Unlock()

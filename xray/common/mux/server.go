@@ -20,7 +20,9 @@ import (
 )
 
 type Server struct {
-	dispatcher routing.Dispatcher
+	dispatcher  routing.Dispatcher
+	multiplexed routing.Dispatcher
+	onMultiplex func()
 }
 
 // NewServer creates a new mux.Server.
@@ -30,6 +32,26 @@ func NewServer(ctx context.Context) *Server {
 		s.dispatcher = d
 	})
 	return s
+}
+
+// NewServerWithDispatcher pins multiplexed streams to the session runtime.
+func NewServerWithDispatcher(dispatcher routing.Dispatcher) *Server {
+	return &Server{dispatcher: dispatcher}
+}
+
+func NewServerWithDispatchers(dispatcher, multiplexed routing.Dispatcher, onMultiplex func()) *Server {
+	return &Server{dispatcher: dispatcher, multiplexed: multiplexed, onMultiplex: onMultiplex}
+}
+
+type SessionRuntime interface {
+	BeginSession(context.Context) (context.Context, func(), error)
+}
+
+func (s *Server) muxDispatcher() routing.Dispatcher {
+	if s.multiplexed != nil {
+		return s.multiplexed
+	}
+	return s.dispatcher
 }
 
 // Type implements common.HasType.
@@ -42,12 +64,15 @@ func (s *Server) Dispatch(ctx context.Context, dest net.Destination) (*transport
 	if dest.Address != muxCoolAddress {
 		return s.dispatcher.Dispatch(ctx, dest)
 	}
+	if s.onMultiplex != nil {
+		s.onMultiplex()
+	}
 
 	opts := pipe.OptionsFromContext(ctx)
 	uplinkReader, uplinkWriter := pipe.New(opts...)
 	downlinkReader, downlinkWriter := pipe.New(opts...)
 
-	_, err := NewServerWorker(ctx, s.dispatcher, &transport.Link{
+	_, err := NewServerWorker(ctx, s.muxDispatcher(), &transport.Link{
 		Reader: uplinkReader,
 		Writer: downlinkWriter,
 	})
@@ -63,7 +88,10 @@ func (s *Server) DispatchLink(ctx context.Context, dest net.Destination, link *t
 	if dest.Address != muxCoolAddress {
 		return s.dispatcher.DispatchLink(ctx, dest, link)
 	}
-	worker, err := NewServerWorker(ctx, s.dispatcher, link)
+	if s.onMultiplex != nil {
+		s.onMultiplex()
+	}
+	worker, err := NewServerWorker(ctx, s.muxDispatcher(), link)
 	if err != nil {
 		return err
 	}
@@ -164,6 +192,19 @@ func (w *ServerWorker) handleStatusKeepAlive(meta *FrameMetadata, reader *buf.Bu
 
 func (w *ServerWorker) handleStatusNew(ctx context.Context, meta *FrameMetadata, reader *buf.BufferedReader) error {
 	ctx = session.SubContextFromMuxInbound(ctx)
+	var release func()
+	if selector, ok := w.dispatcher.(SessionRuntime); ok {
+		var err error
+		ctx, release, err = selector.BeginSession(ctx)
+		if err != nil {
+			return err
+		}
+		defer func() {
+			if release != nil {
+				release()
+			}
+		}()
+	}
 	if meta.Inbound != nil && meta.Inbound.Source.IsValid() && meta.Inbound.Local.IsValid() {
 		if inbound := session.InboundFromContext(ctx); inbound != nil {
 			newInbound := *inbound
@@ -193,15 +234,16 @@ func (w *ServerWorker) handleStatusNew(ctx context.Context, meta *FrameMetadata,
 	}
 
 	if meta.GlobalID != [8]byte{} { // MUST ignore empty Global ID
+		key := xudpSessionKey(ctx, meta.GlobalID)
 		mb, err := NewPacketReader(reader, &meta.Target).ReadMultiBuffer()
 		if err != nil {
 			return err
 		}
 		XUDPManager.Lock()
-		x := XUDPManager.Map[meta.GlobalID]
+		x := XUDPManager.Map[key]
 		if x == nil {
-			x = &XUDP{GlobalID: meta.GlobalID}
-			XUDPManager.Map[meta.GlobalID] = x
+			x = &XUDP{GlobalID: meta.GlobalID, Key: key}
+			XUDPManager.Map[key] = x
 			XUDPManager.Unlock()
 		} else {
 			if x.Status == Initializing { // nearly impossible
@@ -219,6 +261,12 @@ func (w *ServerWorker) handleStatusNew(ctx context.Context, meta *FrameMetadata,
 			b.UDP = mb[0].UDP
 			if err = x.Mux.output.WriteMultiBuffer(mb); err != nil {
 				x.Interrupt()
+				// The retired association's releaseOnce has fired. A replacement
+				// owns a new generation lease, with its own teardown guard.
+				XUDPManager.Lock()
+				x = &XUDP{GlobalID: meta.GlobalID, Key: key}
+				XUDPManager.Map[key] = x
+				XUDPManager.Unlock()
 				mb = buf.MultiBuffer{b}
 			} else {
 				b.Release()
@@ -232,7 +280,7 @@ func (w *ServerWorker) handleStatusNew(ctx context.Context, meta *FrameMetadata,
 			link, err := w.dispatcher.Dispatch(ctx, meta.Target)
 			if err != nil {
 				XUDPManager.Lock()
-				delete(XUDPManager.Map, x.GlobalID)
+				delete(XUDPManager.Map, x.Key)
 				XUDPManager.Unlock()
 				err = errors.New("XUDP new ", meta.GlobalID).Base(errors.New("failed to dispatch request to ", meta.Target).Base(err))
 				return err // it will break the whole Mux connection
@@ -242,6 +290,7 @@ func (w *ServerWorker) handleStatusNew(ctx context.Context, meta *FrameMetadata,
 				input:  link.Reader,
 				output: link.Writer,
 			}
+			x.release, release = release, nil
 			errors.LogInfoInner(ctx, err, "XUDP new ", meta.GlobalID)
 		}
 		x.Mux = &Session{
@@ -269,12 +318,14 @@ func (w *ServerWorker) handleStatusNew(ctx context.Context, meta *FrameMetadata,
 		return errors.New("failed to dispatch request.").Base(err)
 	}
 	s := &Session{
+		release:      release,
 		input:        link.Reader,
 		output:       link.Writer,
 		parent:       w.sessionManager,
 		ID:           meta.SessionID,
 		transferType: protocol.TransferTypeStream,
 	}
+	release = nil
 	if meta.Target.Network == net.Network_UDP {
 		s.transferType = protocol.TransferTypePacket
 	}

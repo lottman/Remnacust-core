@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"io"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/apernet/quic-go"
@@ -77,7 +78,7 @@ type InterConn struct {
 	ch     chan []byte
 	time   time.Time
 	mutex  sync.Mutex
-	closed bool
+	closed atomic.Bool
 
 	write func(p []byte) error
 	close func()
@@ -111,7 +112,7 @@ func (c *InterConn) Read(p []byte) (int, error) {
 }
 
 func (c *InterConn) Write(p []byte) (int, error) {
-	if c.closed {
+	if c.closed.Load() {
 		return 0, io.ErrClosedPipe
 	}
 	binary.BigEndian.PutUint32(p, c.id)
@@ -161,8 +162,7 @@ type udpSessionManager struct {
 }
 
 func (m *udpSessionManager) close(udpConn *InterConn) {
-	if !udpConn.closed {
-		udpConn.closed = true
+	if udpConn.closed.CompareAndSwap(false, true) {
 		close(udpConn.ch)
 		delete(m.m, udpConn.id)
 	}
@@ -173,11 +173,11 @@ func (m *udpSessionManager) clean() {
 	defer ticker.Stop()
 
 	for range ticker.C {
+		m.RLock()
 		if m.closed {
+			m.RUnlock()
 			return
 		}
-
-		m.RLock()
 		now := time.Now()
 		timeoutConn := make([]*InterConn, 0, len(m.m))
 		for _, udpConn := range m.m {
@@ -189,7 +189,9 @@ func (m *udpSessionManager) clean() {
 
 		for _, udpConn := range timeoutConn {
 			m.Lock()
-			m.close(udpConn)
+			if time.Since(udpConn.Time()) > m.udpIdleTimeout {
+				m.close(udpConn)
+			}
 			m.Unlock()
 		}
 	}
@@ -210,11 +212,13 @@ func (m *udpSessionManager) run() {
 		m.feed(id, d)
 	}
 
+	m.stop()
+}
+
+func (m *udpSessionManager) stop() {
 	m.Lock()
 	defer m.Unlock()
-
 	m.closed = true
-
 	for _, udpConn := range m.m {
 		m.close(udpConn)
 	}

@@ -10,10 +10,11 @@ var CmdAPI = &base.Command{
 	Short:     "Call an API in an Xray process",
 	Long: `{{.Exec}} {{.LongName}} provides tools to manipulate Xray via its API.
 `,
-	Commands: []*base.Command{
+	Commands: append(runtimeControlCommands(), []*base.Command{
 		cmdRestartLogger,
 		cmdGetStats,
 		cmdQueryStats,
+		cmdUsageReceipt,
 		cmdSysStats,
 		cmdBalancerInfo,
 		cmdBalancerOverride,
@@ -34,5 +35,5 @@ var CmdAPI = &base.Command{
 		cmdOnlineStats,
 		cmdOnlineStatsIpList,
 		cmdGetAllOnlineUsers,
-	},
+	}...),
 }

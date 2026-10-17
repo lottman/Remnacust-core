@@ -199,7 +199,7 @@ func (i *MultiUserInbound) Process(ctx context.Context, network net.Network, con
 func (i *MultiUserInbound) processTCP(ctx context.Context, conn net.Conn, dispatcher routing.Dispatcher) error {
 	defer conn.Close()
 
-	sessionPolicy := i.policyManager.ForLevel(0)
+	sessionPolicy := core.PolicyForContext(ctx, i.policyManager).ForLevel(0)
 	if err := conn.SetReadDeadline(time.Now().Add(sessionPolicy.Timeouts.Handshake)); err != nil {
 		return errors.New("unable to set read deadline").Base(err)
 	}
@@ -268,7 +268,7 @@ func (i *MultiUserInbound) processTCP(ctx context.Context, conn net.Conn, dispat
 		}
 	}
 
-	return TransportTCP(ctx, i.policyManager.ForLevel(user.Level), reader, writer, link)
+	return TransportTCP(ctx, core.PolicyForContext(ctx, i.policyManager).ForLevel(user.Level), reader, writer, link)
 }
 
 func (i *MultiUserInbound) processUDP(ctx context.Context, conn stat.Connection, dispatcher routing.Dispatcher) error {
@@ -336,7 +336,7 @@ func (i *MultiUserInbound) processUDP(ctx context.Context, conn stat.Connection,
 			}
 			sessionItem.Unlock()
 
-			link, err := sessionItem.EnsureLink(ctx, conn, decoded.Destination, dispatcher, i.policyManager, func(replyDest net.Destination, payload []byte) ([]byte, error) {
+			link, err := sessionItem.EnsureLink(ctx, conn, decoded.Destination, dispatcher, core.PolicyForContext(ctx, i.policyManager), func(replyDest net.Destination, payload []byte) ([]byte, error) {
 				return i.encodeServerUDPPacket(sessionID, userPSK, replyDest, payload)
 			})
 			if err != nil {

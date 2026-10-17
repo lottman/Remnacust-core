@@ -10,3 +10,9 @@ type Feature interface {
 	common.HasType
 	common.Runnable
 }
+
+// StartPreparer is optional. A server or feature scope runs every preparation
+// before starting any feature, so admission policy is ready before listeners.
+type StartPreparer interface {
+	PrepareStart() error
+}

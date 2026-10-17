@@ -127,12 +127,12 @@ func (s *Server) Process(ctx context.Context, network net.Network, conn stat.Con
 			Writer: writer,
 		})
 	} else {
-		sessionPolicy := s.policyManager.ForLevel(inbound.User.Level)
+		sessionPolicy := core.PolicyForContext(ctx, s.policyManager).ForLevel(inbound.User.Level)
 
 		common.Must(conn.SetReadDeadline(time.Now().Add(sessionPolicy.Timeouts.Handshake)))
 		addr, err := ReadTCPRequest(conn)
 		if err != nil {
-			log.Record(&log.AccessMessage{
+			log.RecordContext(ctx, &log.AccessMessage{
 				From:   conn.RemoteAddr(),
 				To:     "",
 				Status: log.AccessRejected,

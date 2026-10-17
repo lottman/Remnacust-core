@@ -23,18 +23,21 @@ func queryIP(ctx context.Context, s CachedNameserver, domain string, option dns.
 	fqdn := Fqdn(domain)
 
 	cache := s.getCacheController()
+	if err := cache.lifetime.Err(); err != nil {
+		return nil, 0, err
+	}
 	if !cache.disableCache {
 		if rec := cache.findRecords(fqdn); rec != nil {
 			ips, ttl, err := merge(option, rec.A, rec.AAAA)
 			if !go_errors.Is(err, errRecordNotFound) {
 				if ttl > 0 {
 					errors.LogDebugInner(ctx, err, cache.name, " cache HIT ", fqdn, " -> ", ips)
-					log.Record(&log.DNSLog{Server: cache.name, Domain: fqdn, Result: ips, Status: log.DNSCacheHit, Elapsed: 0, Error: err})
+					log.RecordContext(ctx, &log.DNSLog{Server: cache.name, Domain: fqdn, Result: ips, Status: log.DNSCacheHit, Elapsed: 0, Error: err})
 					return ips, uint32(ttl), err
 				}
 				if cache.serveStale && (cache.serveExpiredTTL == 0 || cache.serveExpiredTTL < ttl) {
 					errors.LogDebugInner(ctx, err, cache.name, " cache OPTIMISTE ", fqdn, " -> ", ips)
-					log.Record(&log.DNSLog{Server: cache.name, Domain: fqdn, Result: ips, Status: log.DNSCacheOptimiste, Elapsed: 0, Error: err})
+					log.RecordContext(ctx, &log.DNSLog{Server: cache.name, Domain: fqdn, Result: ips, Status: log.DNSCacheOptimiste, Elapsed: 0, Error: err})
 					go pull(ctx, s, fqdn, option)
 					return ips, 1, err
 				}
@@ -55,6 +58,11 @@ func pull(ctx context.Context, s CachedNameserver, fqdn string, option dns.IPOpt
 }
 
 func fetch(ctx context.Context, s CachedNameserver, fqdn string, option dns.IPOption) ([]net.IP, uint32, error) {
+	ctx, cancel := s.getCacheController().queryContext(ctx)
+	defer cancel()
+	if err := ctx.Err(); err != nil {
+		return nil, 0, err
+	}
 	key := fqdn
 	switch {
 	case option.IPv4Enable && option.IPv6Enable:
@@ -123,7 +131,7 @@ func doFetch(ctx context.Context, s CachedNameserver, fqdn string, option dns.IP
 		rTTL = 1
 	}
 
-	log.Record(&log.DNSLog{Server: s.getCacheController().name, Domain: fqdn, Result: ips, Status: log.DNSQueried, Elapsed: time.Since(start), Error: err})
+	log.RecordContext(ctx, &log.DNSLog{Server: s.getCacheController().name, Domain: fqdn, Result: ips, Status: log.DNSQueried, Elapsed: time.Since(start), Error: err})
 	return result{ips, rTTL, err}
 }
 

@@ -128,7 +128,7 @@ func (i *RelayInbound) Process(ctx context.Context, network net.Network, connect
 func (i *RelayInbound) processTCP(ctx context.Context, conn net.Conn, dispatcher routing.Dispatcher) error {
 	defer conn.Close()
 
-	sessionPolicy := i.policyManager.ForLevel(0)
+	sessionPolicy := core.PolicyForContext(ctx, i.policyManager).ForLevel(0)
 	if err := conn.SetReadDeadline(time.Now().Add(sessionPolicy.Timeouts.Handshake)); err != nil {
 		return errors.New("unable to set read deadline").Base(err)
 	}
@@ -199,7 +199,7 @@ func (i *RelayInbound) processTCP(ctx context.Context, conn net.Conn, dispatcher
 		return err
 	}
 
-	return TransportTCP(ctx, i.policyManager.ForLevel(targetDest.level), buf.NewReader(conn), buf.NewWriter(conn), link)
+	return TransportTCP(ctx, core.PolicyForContext(ctx, i.policyManager).ForLevel(targetDest.level), buf.NewReader(conn), buf.NewWriter(conn), link)
 }
 
 func (i *RelayInbound) processUDP(ctx context.Context, conn stat.Connection, dispatcher routing.Dispatcher) error {
@@ -253,7 +253,7 @@ func (i *RelayInbound) processUDP(ctx context.Context, conn stat.Connection, dis
 				}
 				sessionItem.Unlock()
 			}
-			link, err := sessionItem.EnsureLink(ctx, conn, dest, dispatcher, i.policyManager, nil)
+			link, err := sessionItem.EnsureLink(ctx, conn, dest, dispatcher, core.PolicyForContext(ctx, i.policyManager), nil)
 			if err != nil {
 				b.Release()
 				continue

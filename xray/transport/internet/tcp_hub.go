@@ -85,6 +85,11 @@ func ListenTCP(ctx context.Context, address net.Address, port net.Port, settings
 //
 // xray:api:beta
 func ListenSystem(ctx context.Context, addr net.Addr, sockopt *SocketConfig) (net.Listener, error) {
+	if tcp, ok := addr.(*net.TCPAddr); ok {
+		if provider, ok := ctx.Value(listenerProfileKey{}).(ListenerProfileProvider); ok {
+			return provider.ListenerProfile().Listen(ctx, tcp, sockopt, effectiveListener.Listen)
+		}
+	}
 	return effectiveListener.Listen(ctx, addr, sockopt)
 }
 
@@ -92,5 +97,11 @@ func ListenSystem(ctx context.Context, addr net.Addr, sockopt *SocketConfig) (ne
 //
 // xray:api:beta
 func ListenSystemPacket(ctx context.Context, addr net.Addr, sockopt *SocketConfig) (net.PacketConn, error) {
+	if bypass, _ := ctx.Value(profilePacketBypassKey{}).(bool); bypass {
+		return effectiveListener.ListenPacket(ctx, addr, sockopt)
+	}
+	if err := CheckPacketListenerProfile(ctx); err != nil {
+		return nil, err
+	}
 	return effectiveListener.ListenPacket(ctx, addr, sockopt)
 }

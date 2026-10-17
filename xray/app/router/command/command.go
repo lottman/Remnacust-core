@@ -14,11 +14,12 @@ import (
 
 // routingServer is an implementation of RoutingService.
 type routingServer struct {
+	instance     *core.Instance
 	router       routing.Router
 	routingStats stats.Channel
 }
 
-func (s *routingServer) GetBalancerInfo(ctx context.Context, request *GetBalancerInfoRequest) (*GetBalancerInfoResponse, error) {
+func (s *routingServer) getBalancerInfo(ctx context.Context, request *GetBalancerInfoRequest) (*GetBalancerInfoResponse, error) {
 	var ret GetBalancerInfoResponse
 	ret.Balancer = &BalancerMsg{}
 	if bo, ok := s.router.(routing.BalancerOverrider); ok {
@@ -46,28 +47,28 @@ func (s *routingServer) GetBalancerInfo(ctx context.Context, request *GetBalance
 	return &ret, nil
 }
 
-func (s *routingServer) OverrideBalancerTarget(ctx context.Context, request *OverrideBalancerTargetRequest) (*OverrideBalancerTargetResponse, error) {
+func (s *routingServer) overrideBalancerTarget(ctx context.Context, request *OverrideBalancerTargetRequest) (*OverrideBalancerTargetResponse, error) {
 	if bo, ok := s.router.(routing.BalancerOverrider); ok {
 		return &OverrideBalancerTargetResponse{}, bo.SetOverrideTarget(request.BalancerTag, request.Target)
 	}
 	return nil, errors.New("unsupported router implementation")
 }
 
-func (s *routingServer) AddRule(ctx context.Context, request *AddRuleRequest) (*AddRuleResponse, error) {
+func (s *routingServer) addRule(ctx context.Context, request *AddRuleRequest) (*AddRuleResponse, error) {
 	if bo, ok := s.router.(routing.Router); ok {
 		return &AddRuleResponse{}, bo.AddRule(request.Config, request.ShouldAppend)
 	}
 	return nil, errors.New("unsupported router implementation")
 }
 
-func (s *routingServer) RemoveRule(ctx context.Context, request *RemoveRuleRequest) (*RemoveRuleResponse, error) {
+func (s *routingServer) removeRule(ctx context.Context, request *RemoveRuleRequest) (*RemoveRuleResponse, error) {
 	if bo, ok := s.router.(routing.Router); ok {
 		return &RemoveRuleResponse{}, bo.RemoveRule(request.RuleTag)
 	}
 	return nil, errors.New("unsupported router implementation")
 }
 
-func (s *routingServer) ListRule(ctx context.Context, request *ListRuleRequest) (*ListRuleResponse, error) {
+func (s *routingServer) listRule(ctx context.Context, request *ListRuleRequest) (*ListRuleResponse, error) {
 	if bo, ok := s.router.(routing.Router); ok {
 		response := &ListRuleResponse{}
 		for _, v := range bo.ListRule() {
@@ -89,7 +90,7 @@ func NewRoutingServer(router routing.Router, routingStats stats.Channel) Routing
 	}
 }
 
-func (s *routingServer) TestRoute(ctx context.Context, request *TestRouteRequest) (*RoutingContext, error) {
+func (s *routingServer) testRoute(ctx context.Context, request *TestRouteRequest) (*RoutingContext, error) {
 	if request.RoutingContext == nil {
 		return nil, errors.New("Invalid routing request.")
 	}
@@ -143,6 +144,7 @@ type service struct {
 func (s *service) Register(server *grpc.Server) {
 	common.Must(s.v.RequireFeatures(func(router routing.Router, stats stats.Manager) {
 		rs := NewRoutingServer(router, nil)
+		rs.(*routingServer).instance = s.v
 		RegisterRoutingServiceServer(server, rs)
 
 		// For compatibility purposes

@@ -25,6 +25,9 @@ const (
 )
 
 type CacheController struct {
+	lifecycle       sync.Mutex
+	lifetime        context.Context
+	cancel          context.CancelFunc
 	name            string
 	disableCache    bool
 	serveStale      bool
@@ -41,7 +44,9 @@ type CacheController struct {
 }
 
 func NewCacheController(name string, disableCache bool, serveStale bool, serveExpiredTTL uint32) *CacheController {
+	lifetime, cancel := context.WithCancel(context.Background())
 	c := &CacheController{
+		lifetime: lifetime, cancel: cancel,
 		name:            name,
 		disableCache:    disableCache,
 		serveStale:      serveStale,
@@ -55,6 +60,26 @@ func NewCacheController(name string, disableCache bool, serveStale bool, serveEx
 		Execute:  c.CacheCleanup,
 	}
 	return c
+}
+
+func (c *CacheController) Close() error {
+	c.lifecycle.Lock()
+	defer c.lifecycle.Unlock()
+	if c.lifetime.Err() != nil {
+		return nil
+	}
+	c.cancel()
+	_ = c.cacheCleanup.Close()
+	return c.pub.Close()
+}
+
+func (c *CacheController) queryContext(parent context.Context) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(parent)
+	stop := context.AfterFunc(c.lifetime, cancel)
+	if c.lifetime.Err() != nil {
+		cancel()
+	}
+	return ctx, func() { stop(); cancel() }
 }
 
 // CacheCleanup clears expired items from cache
@@ -243,6 +268,13 @@ func (c *CacheController) flush(batch []migrationEntry) {
 }
 
 func (c *CacheController) updateRecord(req *dnsRequest, rep *IPRecord) {
+	// Periodic.Start calls its task synchronously; use a separate lifecycle
+	// gate rather than holding the cache's data lock during task startup.
+	c.lifecycle.Lock()
+	defer c.lifecycle.Unlock()
+	if c.lifetime.Err() != nil {
+		return
+	}
 	rtt := time.Since(req.start)
 
 	switch req.reqType {

@@ -296,13 +296,13 @@ func (h *Handler) init(ctx context.Context) error {
 	}
 	logger := &device.Logger{
 		Verbosef: func(format string, args ...any) {
-			log.Record(&log.GeneralMessage{
+			log.RecordContext(ctx, &log.GeneralMessage{
 				Severity: log.Severity_Debug,
 				Content:  fmt.Sprintf(format, args...),
 			})
 		},
 		Errorf: func(format string, args ...any) {
-			log.Record(&log.GeneralMessage{
+			log.RecordContext(ctx, &log.GeneralMessage{
 				Severity: log.Severity_Error,
 				Content:  fmt.Sprintf(format, args...),
 			})

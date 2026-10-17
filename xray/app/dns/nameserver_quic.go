@@ -32,6 +32,7 @@ type QUICNameServer struct {
 	cacheController *CacheController
 	destination     *net.Destination
 	connection      *quic.Conn
+	closed          bool
 	clientIP        net.IP
 }
 
@@ -223,32 +224,37 @@ func isActive(s *quic.Conn) bool {
 	}
 }
 
-func (s *QUICNameServer) getConnection() (*quic.Conn, error) {
-	var conn *quic.Conn
-	s.RLock()
-	conn = s.connection
+func (s *QUICNameServer) getConnection(ctx context.Context) (*quic.Conn, error) {
+	ctx, cancel := s.cacheController.queryContext(ctx)
+	defer cancel()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	s.Lock()
+	defer s.Unlock()
+	if s.closed {
+		return nil, context.Canceled
+	}
+	conn := s.connection
 	if conn != nil && isActive(conn) {
-		s.RUnlock()
 		return conn, nil
 	}
 	if conn != nil {
 		// we're recreating the connection, let's create a new one
 		_ = conn.CloseWithError(0, "")
 	}
-	s.RUnlock()
-
-	s.Lock()
-	defer s.Unlock()
-
 	var err error
-	conn, err = s.openConnection()
+	conn, err = s.openConnection(ctx)
 	if err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
 		// This does not look too nice, but QUIC (or maybe quic-go)
 		// doesn't seem stable enough.
 		// Maybe retransmissions aren't fully implemented in quic-go?
 		// Anyways, the simple solution is to make a second try when
 		// it fails to open the QUIC connection.
-		conn, err = s.openConnection()
+		conn, err = s.openConnection(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -257,14 +263,27 @@ func (s *QUICNameServer) getConnection() (*quic.Conn, error) {
 	return conn, nil
 }
 
-func (s *QUICNameServer) openConnection() (*quic.Conn, error) {
+func (s *QUICNameServer) Close() error {
+	_ = s.cacheController.Close()
+	s.Lock()
+	s.closed = true
+	conn := s.connection
+	s.connection = nil
+	s.Unlock()
+	if conn != nil {
+		return conn.CloseWithError(0, "DNS generation retired")
+	}
+	return nil
+}
+
+func (s *QUICNameServer) openConnection(ctx context.Context) (*quic.Conn, error) {
 	tlsConfig := tls.Config{}
 	quicConfig := &quic.Config{
 		HandshakeIdleTimeout: handshakeTimeout,
 	}
 	tlsConfig.ServerName = s.destination.Address.String()
-	conn, err := quic.DialAddr(context.Background(), s.destination.NetAddr(), tlsConfig.GetTLSConfig(tls.WithNextProto("http/1.1", http2.NextProtoTLS, NextProtoDQ)), quicConfig)
-	log.Record(&log.AccessMessage{
+	conn, err := quic.DialAddr(ctx, s.destination.NetAddr(), tlsConfig.GetTLSConfig(tls.WithNextProto("http/1.1", http2.NextProtoTLS, NextProtoDQ)), quicConfig)
+	log.RecordContext(ctx, &log.AccessMessage{
 		From:   "DNS",
 		To:     s.destination,
 		Status: log.AccessAccepted,
@@ -278,7 +297,7 @@ func (s *QUICNameServer) openConnection() (*quic.Conn, error) {
 }
 
 func (s *QUICNameServer) openStream(ctx context.Context) (*quic.Stream, error) {
-	conn, err := s.getConnection()
+	conn, err := s.getConnection(ctx)
 	if err != nil {
 		return nil, err
 	}

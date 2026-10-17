@@ -69,7 +69,7 @@ func Listen(ctx context.Context, address net.Address, port net.Port, streamSetti
 		addConn: handler,
 		conns:   make(map[net.Conn]struct{}),
 	}
-	l.ctx, l.cancel = context.WithCancel(context.Background())
+	l.ctx, l.cancel = context.WithCancel(context.WithoutCancel(ctx))
 	h2, h3 := serverVersions(tlsConfig)
 	if h3 {
 		if err := l.listenHTTP3(address, port, streamSettings, tlsConfig); err != nil {
@@ -119,11 +119,7 @@ func (l *Listener) listenHTTP3(address net.Address, port net.Port, streamSetting
 
 	udpAddr := &net.UDPAddr{IP: address.IP(), Port: int(port)}
 	var err error
-	if streamSettings.FinalMask != nil {
-		l.pktConn, err = streamSettings.FinalMask.ListenPacket(context.Background(), udpAddr)
-	} else {
-		l.pktConn, err = internet.ListenSystemPacket(context.Background(), udpAddr, streamSettings.SocketSettings)
-	}
+	l.pktConn, err = internet.ListenProfileQUICPacket(l.ctx, udpAddr, streamSettings)
 	if err != nil {
 		return errors.New("failed to listen UDP on ", address, ":", port).Base(err)
 	}
@@ -133,6 +129,10 @@ func (l *Listener) listenHTTP3(address net.Address, port net.Port, streamSetting
 		common.Must2(rand.Read(resetKey[:]))
 	}
 	l.transport = &quic.Transport{Conn: l.pktConn, DisableGSO: quicParams.DisableGSO, StatelessResetKey: resetKey}
+	if err := internet.ConfigureProfileQUIC(l.ctx, l.transport); err != nil {
+		_ = l.pktConn.Close()
+		return err
+	}
 
 	gotlsConfig := tlsConfig.GetTLSConfig()
 	gotlsConfig.NextProtos = []string{http3.NextProtoH3}

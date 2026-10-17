@@ -44,9 +44,9 @@ func NewServer(ctx context.Context, config *ServerConfig) (*Server, error) {
 	return s, nil
 }
 
-func (s *Server) policy() policy.Session {
+func (s *Server) policy(ctx context.Context) policy.Session {
 	config := s.config
-	p := s.policyManager.ForLevel(config.UserLevel)
+	p := core.PolicyForContext(ctx, s.policyManager).ForLevel(config.UserLevel)
 	return p
 }
 
@@ -109,7 +109,7 @@ func (s *Server) ProcessWithFirstbyte(ctx context.Context, network net.Network, 
 	}
 
 Start:
-	if err := conn.SetReadDeadline(time.Now().Add(s.policy().Timeouts.Handshake)); err != nil {
+	if err := conn.SetReadDeadline(time.Now().Add(s.policy(ctx).Timeouts.Handshake)); err != nil {
 		errors.LogInfoInner(ctx, err, "failed to set read deadline")
 	}
 

@@ -2,6 +2,7 @@ package inbound
 
 import (
 	"context"
+	"sync"
 
 	"github.com/xtls/xray-core/app/proxyman"
 	"github.com/xtls/xray-core/common"
@@ -12,6 +13,7 @@ import (
 	"github.com/xtls/xray-core/common/session"
 	"github.com/xtls/xray-core/core"
 	"github.com/xtls/xray-core/features/policy"
+	"github.com/xtls/xray-core/features/routing"
 	"github.com/xtls/xray-core/features/stats"
 	"github.com/xtls/xray-core/proxy"
 	"github.com/xtls/xray-core/transport/internet"
@@ -50,6 +52,10 @@ type AlwaysOnInboundHandler struct {
 	workers        []worker
 	mux            *mux.Server
 	tag            string
+	runtime        *RuntimeSlot
+	closeOnce      sync.Once
+	closeErr       error
+	stream         *internet.MemoryStreamConfig
 }
 
 func NewAlwaysOnInboundHandler(ctx context.Context, tag string, receiverConfig *proxyman.ReceiverConfig, proxyConfig interface{}) (*AlwaysOnInboundHandler, error) {
@@ -86,9 +92,11 @@ func NewAlwaysOnInboundHandler(ctx context.Context, tag string, receiverConfig *
 		receiverConfig: receiverConfig,
 		proxyConfig:    proxyConfig,
 		proxy:          p,
+		stream:         mss,
 		mux:            mux.NewServer(ctx),
 		tag:            tag,
 	}
+	h.runtime = NewRuntimeSlot(core.MustFromContext(ctx).RuntimeAccess(), NewRuntimeGeneration(ctx, core.MustFromContext(ctx).GetFeature(routing.DispatcherType()).(routing.Dispatcher), nil))
 
 	uplinkCounter, downlinkCounter := getStatCounter(core.MustFromContext(ctx), tag)
 
@@ -113,6 +121,7 @@ func NewAlwaysOnInboundHandler(ctx context.Context, tag string, receiverConfig *
 			errors.LogDebug(ctx, "creating unix domain socket worker on ", address)
 
 			worker := &dsWorker{
+				runtime:         h.runtime,
 				address:         address,
 				proxy:           p,
 				stream:          mss,
@@ -144,6 +153,7 @@ func NewAlwaysOnInboundHandler(ctx context.Context, tag string, receiverConfig *
 						uplinkCounter:   uplinkCounter,
 						downlinkCounter: downlinkCounter,
 						ctx:             ctx,
+						runtime:         h.runtime,
 					}
 					h.workers = append(h.workers, worker)
 				}
@@ -160,6 +170,7 @@ func NewAlwaysOnInboundHandler(ctx context.Context, tag string, receiverConfig *
 						downlinkCounter: downlinkCounter,
 						stream:          mss,
 						ctx:             ctx,
+						runtime:         h.runtime,
 					}
 					h.workers = append(h.workers, worker)
 				}
@@ -188,12 +199,24 @@ func (h *AlwaysOnInboundHandler) Start() error {
 
 // Close implements common.Closable.
 func (h *AlwaysOnInboundHandler) Close() error {
+	h.closeOnce.Do(func() { h.closeErr = h.close() })
+	return h.closeErr
+}
+
+func (h *AlwaysOnInboundHandler) close() error {
+	h.runtime.barrier.Lock()
+	cleanup := h.runtime.SwapLocked(nil)
+	h.runtime.barrier.Unlock()
+	if cleanup != nil {
+		cleanup()
+	}
 	var errs []error
 	for _, worker := range h.workers {
 		errs = append(errs, worker.Close())
 	}
 	errs = append(errs, h.mux.Close())
 	errs = append(errs, common.Close(h.proxy))
+	errs = append(errs, common.Close(h.stream))
 	if err := errors.Combine(errs...); err != nil {
 		return errors.New("failed to close all resources").Base(err)
 	}

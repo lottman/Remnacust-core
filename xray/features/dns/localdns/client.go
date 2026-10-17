@@ -13,8 +13,10 @@ import (
 
 // Client is an implementation of dns.Client, which queries localhost for DNS.
 type Client struct {
-	d *net.Dialer
-	r *net.Resolver
+	lifetime context.Context
+	cancel   context.CancelFunc
+	d        *net.Dialer
+	r        *net.Resolver
 }
 
 // Type implements common.HasType.
@@ -26,16 +28,29 @@ func (*Client) Type() interface{} {
 func (*Client) Start() error { return nil }
 
 // Close implements common.Closable.
-func (*Client) Close() error { return nil }
+func (c *Client) Close() error { c.cancel(); return nil }
 
 // LookupIP implements Client.
 func (c *Client) LookupIP(host string, option dns.IPOption) ([]net.IP, uint32, error) {
+	return c.LookupIPContext(context.Background(), host, option)
+}
+
+func (c *Client) LookupIPContext(parent context.Context, host string, option dns.IPOption) ([]net.IP, uint32, error) {
+	ctx, cancel := context.WithCancel(parent)
+	stop := context.AfterFunc(c.lifetime, cancel)
+	defer func() { stop(); cancel() }()
+	if c.lifetime.Err() != nil {
+		cancel()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, 0, err
+	}
 	var ips []net.IP
 	var err error
 	if len(internet.Controllers) > 0 {
-		ips, err = c.r.LookupIP(context.Background(), "ip", host)
+		ips, err = c.r.LookupIP(ctx, "ip", host)
 	} else {
-		ips, err = net.LookupIP(host)
+		ips, err = net.DefaultResolver.LookupIP(ctx, "ip", host)
 	}
 	if err != nil {
 		return nil, 0, err
@@ -77,6 +92,7 @@ func (c *Client) LookupIP(host string, option dns.IPOption) ([]net.IP, uint32, e
 
 // New create a new dns.Client that queries localhost for DNS.
 func New() *Client {
+	lifetime, cancel := context.WithCancel(context.Background())
 	d := &net.Dialer{
 		Timeout: time.Second * 16,
 		Control: func(network, address string, c syscall.RawConn) error {
@@ -105,6 +121,7 @@ func New() *Client {
 	}
 
 	return &Client{
+		lifetime: lifetime, cancel: cancel,
 		d: d,
 		r: r,
 	}

@@ -158,7 +158,7 @@ func (s *Server) handleUDPPayload(ctx context.Context, conn stat.Connection, dis
 			if err != nil {
 				if inbound.Source.IsValid() {
 					errors.LogInfoInner(ctx, err, "dropping invalid UDP packet from: ", inbound.Source)
-					log.Record(&log.AccessMessage{
+					log.RecordContext(ctx, &log.AccessMessage{
 						From:   inbound.Source,
 						To:     "",
 						Status: log.AccessRejected,
@@ -198,7 +198,7 @@ func (s *Server) handleUDPPayload(ctx context.Context, conn stat.Connection, dis
 }
 
 func (s *Server) handleConnection(ctx context.Context, conn stat.Connection, dispatcher routing.Dispatcher) error {
-	sessionPolicy := s.policyManager.ForLevel(0)
+	sessionPolicy := core.PolicyForContext(ctx, s.policyManager).ForLevel(0)
 	if err := conn.SetReadDeadline(time.Now().Add(sessionPolicy.Timeouts.Handshake)); err != nil {
 		return errors.New("unable to set read deadline").Base(err)
 	}
@@ -206,7 +206,7 @@ func (s *Server) handleConnection(ctx context.Context, conn stat.Connection, dis
 	bufferedReader := buf.BufferedReader{Reader: buf.NewReader(conn)}
 	request, bodyReader, err := ReadTCPSession(s.validator, &bufferedReader)
 	if err != nil {
-		log.Record(&log.AccessMessage{
+		log.RecordContext(ctx, &log.AccessMessage{
 			From:   conn.RemoteAddr(),
 			To:     "",
 			Status: log.AccessRejected,
@@ -232,7 +232,7 @@ func (s *Server) handleConnection(ctx context.Context, conn stat.Connection, dis
 	})
 	errors.LogInfo(ctx, "tunnelling request to ", dest)
 
-	sessionPolicy = s.policyManager.ForLevel(request.User.Level)
+	sessionPolicy = core.PolicyForContext(ctx, s.policyManager).ForLevel(request.User.Level)
 	ctx, cancel := context.WithCancel(ctx)
 	timer := signal.CancelAfterInactivity(ctx, cancel, sessionPolicy.Timeouts.ConnectionIdle)
 

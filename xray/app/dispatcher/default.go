@@ -93,6 +93,7 @@ func (r *cachedReader) Interrupt() {
 
 // DefaultDispatcher is a default implementation of Dispatcher.
 type DefaultDispatcher struct {
+	ctx    context.Context
 	ohm    outbound.Manager
 	router routing.Router
 	policy policy.Manager
@@ -102,7 +103,7 @@ type DefaultDispatcher struct {
 
 func init() {
 	common.Must(common.RegisterConfig((*Config)(nil), func(ctx context.Context, config interface{}) (interface{}, error) {
-		d := new(DefaultDispatcher)
+		d := &DefaultDispatcher{ctx: ctx}
 		if err := core.RequireFeatures(ctx, func(om outbound.Manager, router routing.Router, pm policy.Manager, sm stats.Manager, dc dns.Client) error {
 			core.OptionalFeatures(ctx, func(fdns dns.FakeDNSEngine) {
 				d.fdns = fdns
@@ -129,9 +130,15 @@ func (*DefaultDispatcher) Type() interface{} {
 	return routing.DispatcherType()
 }
 
-// Start implements common.Runnable.
-func (*DefaultDispatcher) Start() error {
-	return nil
+// PrepareStart loads admission rules before any listener starts.
+func (d *DefaultDispatcher) PrepareStart() error {
+	return prepareHostPolicy(d.ctx)
+}
+
+// Start implements common.Runnable. Preparation is also safe for direct users
+// of the dispatcher outside a core Instance.
+func (d *DefaultDispatcher) Start() error {
+	return d.PrepareStart()
 }
 
 // Close implements common.Closable.
@@ -159,7 +166,9 @@ func (d *DefaultDispatcher) getLink(ctx context.Context) (*transport.Link, *tran
 	}
 
 	if user != nil && len(user.Email) > 0 {
-		trackUserLink(ctx, user.Email, inboundLink, outboundLink)
+		if !trackUserLink(ctx, user.Email, inboundLink, outboundLink) {
+			return inboundLink, outboundLink
+		}
 		p := d.policy.ForLevel(user.Level)
 		if p.Stats.UserUplink {
 			name := "user>>>" + user.Email + ">>>traffic>>>uplink"
@@ -199,7 +208,9 @@ func WrapLink(ctx context.Context, policyManager policy.Manager, statsManager st
 	link.Reader = &buf.TimeoutWrapperReader{Reader: link.Reader}
 
 	if user != nil && len(user.Email) > 0 {
-		trackUserLink(ctx, user.Email, link, nil)
+		if !trackUserLink(ctx, user.Email, link, nil) {
+			return link
+		}
 		p := policyManager.ForLevel(user.Level)
 		if p.Stats.UserUplink {
 			name := "user>>>" + user.Email + ">>>traffic>>>uplink"
@@ -269,6 +280,9 @@ func (d *DefaultDispatcher) shouldOverride(ctx context.Context, result SniffResu
 
 // Dispatch implements routing.Dispatcher.
 func (d *DefaultDispatcher) Dispatch(ctx context.Context, destination net.Destination) (*transport.Link, error) {
+	if instance := core.FromContext(ctx); instance != nil && instance.ProfilePreparing() {
+		return nil, errors.New("the profile is not activated")
+	}
 	if !destination.IsValid() {
 		panic("Dispatcher: Invalid destination.")
 	}
@@ -326,6 +340,9 @@ func (d *DefaultDispatcher) Dispatch(ctx context.Context, destination net.Destin
 
 // DispatchLink implements routing.Dispatcher.
 func (d *DefaultDispatcher) DispatchLink(ctx context.Context, destination net.Destination, outbound *transport.Link) error {
+	if instance := core.FromContext(ctx); instance != nil && instance.ProfilePreparing() {
+		return errors.New("the profile is not activated")
+	}
 	if !destination.IsValid() {
 		return errors.New("Dispatcher: Invalid destination.")
 	}
@@ -474,6 +491,9 @@ func (d *DefaultDispatcher) routedDispatch(ctx context.Context, link *transport.
 				return // DO NOT CHANGE: the traffic shouldn't be processed by default outbound if the specified outbound tag doesn't exist (yet), e.g., VLESS Reverse Proxy
 			}
 		} else {
+			if err != common.ErrNoClue {
+				errors.LogErrorInner(ctx, err, "failed to pick route for ", destination)
+			}
 			errors.LogInfo(ctx, "default route for ", destination)
 		}
 	}
@@ -502,7 +522,7 @@ func (d *DefaultDispatcher) routedDispatch(ctx context.Context, link *transport.
 				accessMessage.Detour = inTag + " >> " + tag
 			}
 		}
-		log.Record(accessMessage)
+		log.RecordContext(ctx, accessMessage)
 	}
 
 	handler.Dispatch(ctx, link)

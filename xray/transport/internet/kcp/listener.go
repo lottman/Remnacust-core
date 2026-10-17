@@ -46,7 +46,7 @@ func NewListener(ctx context.Context, address net.Address, port net.Port, stream
 		l.tlsConfig = config.GetTLSConfig()
 	}
 
-	hub, err := udp.ListenUDP(ctx, address, port, streamSettings, udp.HubCapacity(1024))
+	hub, err := udp.ListenUDP(ctx, address, port, streamSettings, udp.HubCapacity(1024), udp.HubTrackNativeSessions("kcp-conversation-v1", packetSessionKey))
 	if err != nil {
 		return nil, err
 	}
@@ -92,6 +92,16 @@ func (l *Listener) OnReceive(payload *buf.Buffer, src net.Destination) {
 
 	if !found {
 		if cmd == CommandTerminate {
+			for _, segment := range segments {
+				segment.Release()
+			}
+			return
+		}
+		release, err := l.hub.AcquirePacketSession(src, conversationSessionKey(conv))
+		if err != nil {
+			for _, segment := range segments {
+				segment.Release()
+			}
 			return
 		}
 		writer := &Writer{
@@ -99,6 +109,7 @@ func (l *Listener) OnReceive(payload *buf.Buffer, src net.Destination) {
 			hub:      l.hub,
 			dest:     src,
 			listener: l,
+			release:  release,
 		}
 		remoteAddr := &net.UDPAddr{
 			IP:   src.Address.IP(),
@@ -154,10 +165,12 @@ func (l *Listener) Addr() net.Addr {
 }
 
 type Writer struct {
-	id       ConnectionID
-	dest     net.Destination
-	hub      *udp.Hub
-	listener *Listener
+	id        ConnectionID
+	dest      net.Destination
+	hub       *udp.Hub
+	listener  *Listener
+	release   func()
+	closeOnce sync.Once
 }
 
 func (w *Writer) Write(payload []byte) (int, error) {
@@ -165,8 +178,24 @@ func (w *Writer) Write(payload []byte) (int, error) {
 }
 
 func (w *Writer) Close() error {
-	w.listener.Remove(w.id)
+	w.closeOnce.Do(func() {
+		w.listener.Remove(w.id)
+		if w.release != nil {
+			w.release()
+		}
+	})
 	return nil
+}
+
+func conversationSessionKey(conv uint16) string {
+	return string([]byte{byte(conv >> 8), byte(conv)})
+}
+
+func packetSessionKey(packet []byte) string {
+	if len(packet) < 4 || Command(packet[2]) > CommandPing {
+		return ""
+	}
+	return string(packet[:2])
 }
 
 func ListenKCP(ctx context.Context, address net.Address, port net.Port, streamSettings *internet.MemoryStreamConfig, addConn internet.ConnHandler) (internet.Listener, error) {

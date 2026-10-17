@@ -723,6 +723,10 @@ func UnwrapRawConn(conn net.Conn) (net.Conn, stats.Counter, stats.Counter) {
 		if uc, ok := conn.(*internet.UnixConnWrapper); ok {
 			conn = uc.UnixConn
 		}
+		conn = internet.UnwrapProfileListenerConn(conn)
+		if pc, ok := conn.(*proxyproto.Conn); ok {
+			conn = pc.Raw()
+		}
 	}
 	return conn, readCounter, writerCounter
 }
@@ -817,6 +821,7 @@ func readV(ctx context.Context, reader buf.Reader, writer buf.Writer, timer sign
 func IsRAWTransportWithoutSecurity(conn stat.Connection) bool {
 	iConn := stat.TryUnwrapStatsConn(conn)
 	iConn = finalmask.UnwrapTcpMask(iConn)
+	iConn = internet.UnwrapProfileListenerConn(iConn)
 	_, ok1 := iConn.(*proxyproto.Conn)
 	_, ok2 := iConn.(*net.TCPConn)
 	_, ok3 := iConn.(*internet.UnixConnWrapper)

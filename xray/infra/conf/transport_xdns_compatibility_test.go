@@ -41,3 +41,13 @@ func TestXDNSLegacyConfiguration(t *testing.T) {
 		t.Fatal("unsupported legacy resolver protocol accepted")
 	}
 }
+
+func TestXDNSPublishedReleaseRejectsDoH(t *testing.T) {
+	var config XDNS
+	if err := json.Unmarshal([]byte(`{"resolvers":[{"addrs":["https://resolver.invalid/dns-query?mode=wire"],"worker":4,"tlsConfig":{"serverName":"front.invalid","alpn":["h3"]},"quicConfig":{"congestion":"bbr","bbrProfile":"aggressive"}},{"type":"udp","settings":{"addr":"127.0.0.1:5353"}}]}`), &config); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := config.Build(); err == nil {
+		t.Fatal("XDNS DoH belongs to an unpublished upstream commit, not the selected release")
+	}
+}

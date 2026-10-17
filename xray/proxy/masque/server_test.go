@@ -11,13 +11,19 @@ import (
 	"net/netip"
 	"os"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/xtls/xray-core/common"
 	"github.com/xtls/xray-core/common/buf"
 	"github.com/xtls/xray-core/common/net"
 	"github.com/xtls/xray-core/common/protocol"
+	"github.com/xtls/xray-core/common/serial"
+	"github.com/xtls/xray-core/core"
+	"github.com/xtls/xray-core/features/routing"
+	"github.com/xtls/xray-core/transport"
 	"golang.zx2c4.com/wireguard/tun"
 )
 
@@ -177,7 +183,7 @@ func addUserTunnel(t *testing.T, s *Server, user *protocol.MemoryUser) (*serverT
 		require.NoError(t, s.AddUser(context.Background(), user))
 	}
 	conn := newFakeTunnelConn()
-	tunnel := newServerTunnel(conn, user)
+	tunnel := newServerTunnel(context.Background(), conn, user, s.dispatcher)
 	for _, pool := range s.pools {
 		addr, ok := pool.allocate()
 		require.True(t, ok)
@@ -348,8 +354,8 @@ func TestPeerPacketsCannotBypassRevocationAndAreAccounted(t *testing.T) {
 	b, _ := addTunnel(t, s)
 	target := netip.MustParseAddr("10.14.0.3")
 	require.True(t, s.allowPeerPacket(a, b, target, 20))
-	s.recordPeerTraffic(a.user, "uplink", 20)
-	s.recordPeerTraffic(b.user, "downlink", 20)
+	s.recordPeerTraffic(a.ctx, a.user, "uplink", 20)
+	s.recordPeerTraffic(b.ctx, b.user, "downlink", 20)
 	require.Equal(t, int64(20), s.stats.GetCounter("user>>>"+a.user.Email+">>>traffic>>>uplink").Value())
 	require.Equal(t, int64(20), s.stats.GetCounter("user>>>"+b.user.Email+">>>traffic>>>downlink").Value())
 	dispatcher.RevokeUserLinks(a.user.Email)
@@ -358,4 +364,95 @@ func TestPeerPacketsCannotBypassRevocationAndAreAccounted(t *testing.T) {
 	dispatcher.AllowUserLinks(a.user.Email)
 	require.NoError(t, s.RemoveUser(context.Background(), b.user.Email))
 	require.False(t, s.allowPeerPacket(a, b, target, 20))
+}
+
+// stackConn is a TCP connection as the stack hands it over: it is its own buf.Writer.
+type stackConn struct {
+	net.Conn
+	closed atomic.Int32
+}
+
+func (c *stackConn) Read([]byte) (int, error) { return 0, io.EOF }
+
+func (c *stackConn) WriteMultiBuffer(mb buf.MultiBuffer) error {
+	buf.ReleaseMulti(mb)
+	return nil
+}
+
+func (c *stackConn) Close() error {
+	c.closed.Add(1)
+	return nil
+}
+
+func (c *stackConn) RemoteAddr() net.Addr {
+	return &net.TCPAddr{IP: net.IP{10, 13, 0, 2}, Port: 1234}
+}
+
+// closingDispatcher does what an outbound does when the other side has no more to send.
+type closingDispatcher struct {
+	routing.Dispatcher
+	conn   *stackConn
+	closed int32
+	seen   context.Context
+}
+
+func (d *closingDispatcher) DispatchLink(ctx context.Context, _ net.Destination, link *transport.Link) error {
+	d.seen = ctx
+	common.Close(link.Writer)
+	d.closed = d.conn.closed.Load()
+	return nil
+}
+
+func TestServerTunnelUsesAdmittedGraphInsteadOfOriginalListenerGraph(t *testing.T) {
+	type ownerKey struct{}
+	conn := &stackConn{}
+	old := &closingDispatcher{conn: conn}
+	admitted := &closingDispatcher{conn: conn}
+	ctx := context.WithValue(context.Background(), ownerKey{}, "admitted")
+	tunnel := newServerTunnel(ctx, nil, &protocol.MemoryUser{}, admitted)
+	defer tunnel.close()
+	s := &Server{
+		ctx:        context.WithValue(context.Background(), ownerKey{}, "original"),
+		dispatcher: old,
+		tunnels:    map[netip.Addr]*serverTunnel{netip.MustParseAddr("10.13.0.2"): tunnel},
+	}
+	s.handleConnection(conn, net.TCPDestination(net.ParseAddress("192.0.2.1"), 443))
+	if old.seen != nil || admitted.seen == nil || admitted.seen.Value(ownerKey{}) != "admitted" {
+		t.Fatal("MASQUE IP flow escaped the graph that admitted its tunnel")
+	}
+}
+
+func TestPeerAccountingUsesTunnelLevelPolicy(t *testing.T) {
+	s, _ := newTestServer(t)
+	profile, err := core.NewProfile(context.Background(), &core.Config{App: []*serial.TypedMessage{
+		serial.ToTypedMessage(&appPolicy.Config{Level: map[uint32]*appPolicy.Policy{0: {Stats: &appPolicy.Policy_Stats{UserUplink: true}}}}),
+	}})
+	require.NoError(t, err)
+	defer profile.Close()
+	user := &protocol.MemoryUser{Email: "profile-peer"}
+	s.recordPeerTraffic(profile.RuntimeContext(), user, "uplink", 20)
+	counter := s.stats.GetCounter("user>>>profile-peer>>>traffic>>>uplink")
+	require.NotNil(t, counter)
+	require.Equal(t, int64(20), counter.Value())
+	// The original listener policy has user accounting disabled.
+	s.recordPeerTraffic(context.Background(), user, "uplink", 20)
+	require.Equal(t, int64(20), counter.Value())
+}
+
+func TestServerKeepsConnectionOpenWhenWriterCloses(t *testing.T) {
+	conn := &stackConn{}
+	dispatcher := &closingDispatcher{conn: conn}
+	s := &Server{
+		ctx:        context.Background(),
+		dispatcher: dispatcher,
+		tunnels:    map[netip.Addr]*serverTunnel{netip.MustParseAddr("10.13.0.2"): newServerTunnel(context.Background(), nil, &protocol.MemoryUser{}, dispatcher)},
+	}
+	s.handleConnection(conn, net.TCPDestination(net.ParseAddress("192.0.2.1"), 443))
+
+	if dispatcher.closed != 0 {
+		t.Fatal("the connection was closed with its writer, while the client may still be sending")
+	}
+	if got := conn.closed.Load(); got != 1 {
+		t.Fatalf("connection closed %d times, want 1", got)
+	}
 }

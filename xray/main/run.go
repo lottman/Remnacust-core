@@ -53,11 +53,12 @@ func init() {
 }
 
 var (
-	configFiles cmdarg.Arg // "Config file for Xray.", the option is customed type, parse in main
-	configDir   string
-	dump        = cmdRun.Flag.Bool("dump", false, "Dump merged config only, without launching Xray server.")
-	test        = cmdRun.Flag.Bool("test", false, "Test config file only, without launching Xray server.")
-	format      = cmdRun.Flag.String("format", "auto", "Format of input file.")
+	configFiles  cmdarg.Arg // "Config file for Xray.", the option is customed type, parse in main
+	configDir    string
+	dump         = cmdRun.Flag.Bool("dump", false, "Dump merged config only, without launching Xray server.")
+	test         = cmdRun.Flag.Bool("test", false, "Test config file only, without launching Xray server.")
+	format       = cmdRun.Flag.String("format", "auto", "Format of input file.")
+	runtimeCache = cmdRun.Flag.String("runtime-cache", "", "Private managed-node checkpoint.")
 
 	/* We have to do this here because Golang's Test will also need to parse flag, before
 	 * main func in this file is run.
@@ -215,8 +216,22 @@ func getConfigFormat() string {
 
 func startXray() (core.Server, error) {
 	configFiles := getConfigFilePath(true)
-
-	c, err := core.LoadConfig(getConfigFormat(), configFiles)
+	var c *core.Config
+	var err error
+	if *runtimeCache != "" && !*test {
+		c, err = core.LoadRuntimeJournal(*runtimeCache)
+		if err != nil && !os.IsNotExist(err) {
+			return nil, errors.New("managed runtime checkpoint could not be verified").Base(err)
+		}
+		if c != nil {
+			if err := rebaseRuntimeControl(c); err != nil {
+				return nil, err
+			}
+		}
+	}
+	if c == nil {
+		c, err = core.LoadConfig(getConfigFormat(), configFiles)
+	}
 	if err != nil {
 		return nil, errors.New("failed to load config files: [", configFiles.String(), "]").Base(err)
 	}
@@ -224,6 +239,9 @@ func startXray() (core.Server, error) {
 	server, err := core.New(c)
 	if err != nil {
 		return nil, errors.New("failed to create server").Base(err)
+	}
+	if *runtimeCache != "" && !*test {
+		server.SetRuntimeJournal(*runtimeCache)
 	}
 
 	return server, nil

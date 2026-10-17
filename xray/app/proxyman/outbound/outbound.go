@@ -2,7 +2,9 @@ package outbound
 
 import (
 	"context"
+	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -162,13 +164,20 @@ func (m *Manager) ListHandlers(ctx context.Context) []outbound.Handler {
 
 // Select implements outbound.HandlerSelector.
 func (m *Manager) Select(selectors []string) []string {
-	key := strings.Join(selectors, ",")
-	if cache, ok := m.tagsCache.Load(key); ok {
-		return cache.([]string)
-	}
-
+	// The cache belongs to the handler map protected by access. Holding the
+	// read lock also prevents a concurrent mutation replacing its sync.Map.
 	m.access.RLock()
 	defer m.access.RUnlock()
+	var keyBuilder strings.Builder
+	for _, selector := range selectors {
+		keyBuilder.WriteString(strconv.Itoa(len(selector)))
+		keyBuilder.WriteByte(':')
+		keyBuilder.WriteString(selector)
+	}
+	key := keyBuilder.String()
+	if cache, ok := m.tagsCache.Load(key); ok {
+		return slices.Clone(cache.([]string))
+	}
 
 	tags := make([]string, 0, len(selectors))
 
@@ -182,7 +191,7 @@ func (m *Manager) Select(selectors []string) []string {
 	}
 
 	sort.Strings(tags)
-	m.tagsCache.Store(key, tags)
+	m.tagsCache.Store(key, slices.Clone(tags))
 
 	return tags
 }

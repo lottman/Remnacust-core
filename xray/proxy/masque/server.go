@@ -60,23 +60,24 @@ type Server struct {
 }
 
 type serverTunnel struct {
-	ctx    context.Context
-	cancel context.CancelFunc
-	conn   stat.Connection
-	ipConn *connectip.Conn
-	user   *protocol.MemoryUser
-	addrs  []netip.Addr
-	queue  chan *buf.Buffer
-	done   chan struct{}
+	ctx        context.Context
+	dispatcher routing.Dispatcher
+	cancel     context.CancelFunc
+	conn       stat.Connection
+	ipConn     *connectip.Conn
+	user       *protocol.MemoryUser
+	addrs      []netip.Addr
+	queue      chan *buf.Buffer
+	done       chan struct{}
 
 	mu    sync.Mutex
 	conns map[net.Conn]struct{}
 }
 
-func newServerTunnel(conn stat.Connection, user *protocol.MemoryUser) *serverTunnel {
-	ctx, cancel := context.WithCancel(context.Background())
+func newServerTunnel(parent context.Context, conn stat.Connection, user *protocol.MemoryUser, dispatcher routing.Dispatcher) *serverTunnel {
+	ctx, cancel := context.WithCancel(parent)
 	return &serverTunnel{
-		ctx: ctx, cancel: cancel,
+		ctx: ctx, cancel: cancel, dispatcher: dispatcher,
 		conn:  conn,
 		user:  user,
 		queue: make(chan *buf.Buffer, tunnelQueueSize),
@@ -286,7 +287,7 @@ func (s *Server) Process(ctx context.Context, network net.Network, conn stat.Con
 	user := s.validator.get(name, pass)
 	if user == nil {
 		sconn.Reject(http.StatusUnauthorized, http.Header{"WWW-Authenticate": {authenticateHeader}})
-		log.Record(&log.AccessMessage{
+		log.RecordContext(ctx, &log.AccessMessage{
 			From:   conn.RemoteAddr(),
 			To:     "",
 			Status: log.AccessRejected,
@@ -295,7 +296,7 @@ func (s *Server) Process(ctx context.Context, network net.Network, conn stat.Con
 		return errors.New("MASQUE: authentication failed for ", name)
 	}
 	inbound.User = user
-	if s.policy.ForLevel(user.Level).Stats.UserOnline {
+	if core.PolicyForContext(ctx, s.policy).ForLevel(user.Level).Stats.UserOnline {
 		if online, _ := s.stats.GetOrRegisterOnlineMap("user>>>" + user.Email + ">>>online"); online != nil {
 			ip := inbound.Source.Address.String()
 			online.AddIP(ip)
@@ -303,7 +304,7 @@ func (s *Server) Process(ctx context.Context, network net.Network, conn stat.Con
 		}
 	}
 
-	t := newServerTunnel(conn, user)
+	t := newServerTunnel(ctx, conn, user, dispatcher)
 	for _, pool := range s.pools {
 		if addr, ok := pool.allocate(); ok {
 			t.addrs = append(t.addrs, addr)
@@ -454,8 +455,8 @@ func (s *Server) readFromTunnel(t *serverTunnel) error {
 				if !other.send(packet) {
 					packet.Release()
 				} else {
-					s.recordPeerTraffic(t.user, "uplink", n)
-					s.recordPeerTraffic(other.user, "downlink", n)
+					s.recordPeerTraffic(t.ctx, t.user, "uplink", n)
+					s.recordPeerTraffic(other.ctx, other.user, "downlink", n)
 				}
 			}
 			continue
@@ -486,11 +487,11 @@ func (s *Server) allowPeerPacket(from, to *serverTunnel, destination netip.Addr,
 	return s.validator.contains(from.user) && s.validator.contains(to.user)
 }
 
-func (s *Server) recordPeerTraffic(user *protocol.MemoryUser, direction string, size int) {
+func (s *Server) recordPeerTraffic(ctx context.Context, user *protocol.MemoryUser, direction string, size int) {
 	if user == nil || user.Email == "" {
 		return
 	}
-	p := s.policy.ForLevel(user.Level)
+	p := core.PolicyForContext(ctx, s.policy).ForLevel(user.Level)
 	if (direction == "uplink" && p.Stats.UserUplink) || (direction == "downlink" && p.Stats.UserDownlink) {
 		if counter, _ := s.stats.GetOrRegisterCounter("user>>>" + user.Email + ">>>traffic>>>" + direction); counter != nil {
 			counter.Add(int64(size))
@@ -564,7 +565,7 @@ func (s *Server) handleConnection(conn net.Conn, dest net.Destination) {
 	}
 	defer t.untrack(conn)
 
-	ctx, cancel := context.WithCancel(s.ctx)
+	ctx, cancel := context.WithCancel(t.ctx)
 	defer cancel()
 	ctx = c.ContextWithID(ctx, session.NewID())
 	inbound := session.Inbound{
@@ -589,9 +590,9 @@ func (s *Server) handleConnection(conn net.Conn, dest net.Destination) {
 
 	link := &transport.Link{
 		Reader: &buf.TimeoutWrapperReader{Reader: buf.NewReader(conn)},
-		Writer: buf.NewWriter(conn),
+		Writer: buf.NewWriter(struct{ io.Writer }{conn}),
 	}
-	if err := s.dispatcher.DispatchLink(ctx, dest, link); err != nil {
+	if err := t.dispatcher.DispatchLink(ctx, dest, link); err != nil {
 		errors.LogError(ctx, errors.New("connection closed").Base(err))
 	}
 }

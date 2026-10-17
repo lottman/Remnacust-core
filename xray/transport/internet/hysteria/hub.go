@@ -118,7 +118,10 @@ func (h *httpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *httpHandler) StreamDispatcher(ft http3.FrameType, stream *quic.Stream, err error) (bool, error) {
-	if err != nil || !h.auth {
+	h.Lock()
+	authenticated, user := h.auth, h.user
+	h.Unlock()
+	if err != nil || !authenticated {
 		return false, nil
 	}
 
@@ -133,7 +136,7 @@ func (h *httpHandler) StreamDispatcher(ft http3.FrameType, stream *quic.Stream, 
 			local:  h.conn.LocalAddr(),
 			remote: h.conn.RemoteAddr(),
 
-			user: h.user,
+			user: user,
 		})
 		return true, nil
 	default:
@@ -316,13 +319,7 @@ func Listen(ctx context.Context, address net.Address, port net.Port, streamSetti
 		quicConfig.MaxIncomingStreams = 1024
 	}
 
-	var pktConn net.PacketConn
-	var err error
-	if streamSettings.FinalMask != nil {
-		pktConn, err = streamSettings.FinalMask.ListenPacket(context.Background(), &net.UDPAddr{IP: address.IP(), Port: int(port)})
-	} else {
-		pktConn, err = internet.ListenSystemPacket(context.Background(), &net.UDPAddr{IP: address.IP(), Port: int(port)}, streamSettings.SocketSettings)
-	}
+	pktConn, err := internet.ListenProfileQUICPacket(ctx, &net.UDPAddr{IP: address.IP(), Port: int(port)}, streamSettings)
 	if err != nil {
 		return nil, err
 	}
@@ -334,6 +331,10 @@ func Listen(ctx context.Context, address net.Address, port net.Port, streamSetti
 	}
 
 	tr := &quic.Transport{Conn: pktConn, DisableGSO: quicParams.DisableGSO, StatelessResetKey: k}
+	if err := internet.ConfigureProfileQUIC(ctx, tr); err != nil {
+		_ = pktConn.Close()
+		return nil, err
+	}
 
 	listener, err := tr.Listen(tlsConfig.GetTLSConfig(tls.WithNextProto("h3")), quicConfig)
 	if err != nil {

@@ -51,9 +51,9 @@ func NewServer(ctx context.Context, config *ServerConfig) (*Server, error) {
 	return s, nil
 }
 
-func (s *Server) policy() policy.Session {
+func (s *Server) policy(ctx context.Context) policy.Session {
 	config := s.config
-	p := s.policyManager.ForLevel(config.UserLevel)
+	p := core.PolicyForContext(ctx, s.policyManager).ForLevel(config.UserLevel)
 	return p
 }
 
@@ -95,7 +95,7 @@ func (s *Server) Process(ctx context.Context, network net.Network, conn stat.Con
 }
 
 func (s *Server) processTCP(ctx context.Context, conn stat.Connection, dispatcher routing.Dispatcher, firstbyte []byte) error {
-	plcy := s.policy()
+	plcy := s.policy(ctx)
 	if err := conn.SetReadDeadline(time.Now().Add(plcy.Timeouts.Handshake)); err != nil {
 		errors.LogInfoInner(ctx, err, "failed to set deadline")
 	}
@@ -123,7 +123,7 @@ func (s *Server) processTCP(ctx context.Context, conn stat.Connection, dispatche
 	defer common.CloseIfExists(tempUDPConn)
 	if err != nil {
 		if inbound.Source.IsValid() {
-			log.Record(&log.AccessMessage{
+			log.RecordContext(ctx, &log.AccessMessage{
 				From:   inbound.Source,
 				To:     "",
 				Status: log.AccessRejected,
@@ -170,9 +170,17 @@ func (s *Server) processTCP(ctx context.Context, conn stat.Connection, dispatche
 			return errors.New("UDP associate with listen port failed")
 		}
 		tempUDPConn.SetTimeout(plcy.Timeouts.ConnectionIdle)
+		var udpConn stat.Connection = tempUDPConn
+		if counters, ok := conn.(*stat.CounterConnection); ok {
+			udpConn = &stat.CounterConnection{
+				Connection:   tempUDPConn,
+				ReadCounter:  counters.ReadCounter,
+				WriteCounter: counters.WriteCounter,
+			}
+		}
 		errCh := make(chan error, 1)
 		go func() {
-			errCh <- s.handleUDPPayload(ctx, tempUDPConn, dispatcher)
+			errCh <- s.handleUDPPayload(ctx, udpConn, dispatcher)
 		}()
 		// Associated TCP keeps the UDP alive
 		// Close UDP if TCP connection is closed

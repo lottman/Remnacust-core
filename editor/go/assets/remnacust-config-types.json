@@ -219,6 +219,9 @@
       "policy": {
         "$ref": "#/definitions/RemnacustCorePolicyConfig"
       },
+      "remnacustUserQuotaRequired": {
+        "type": "boolean"
+      },
       "reverse": {
         "$ref": "#/definitions/RemnacustCoreReverseConfig"
       },
@@ -329,6 +332,9 @@
         "$ref": "#/definitions/RemnacustCoreHostsWrapper"
       },
       "queryStrategy": {
+        "type": "string"
+      },
+      "script": {
         "type": "string"
       },
       "serveExpiredTTL": {
@@ -1211,6 +1217,9 @@
       },
       "user": {
         "type": "string"
+      },
+      "warp": {
+        "$ref": "#/definitions/RemnacustCoreMasqueWarpConfig"
       }
     },
     "type": "object"
@@ -1252,6 +1261,24 @@
         "type": "integer"
       },
       "pass": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreMasqueWarpConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "address": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "privateKey": {
+        "type": "string"
+      },
+      "publicKey": {
         "type": "string"
       }
     },
@@ -1384,6 +1411,9 @@
       },
       "finalQuery": {
         "type": "boolean"
+      },
+      "id": {
+        "type": "string"
       },
       "port": {
         "type": "integer"
@@ -2044,6 +2074,9 @@
       "rules": {
         "items": {},
         "type": "array"
+      },
+      "script": {
+        "type": "string"
       }
     },
     "type": "object"
@@ -2832,6 +2865,9 @@
       },
       "serverName": {
         "type": "string"
+      },
+      "useSystemCA": {
+        "type": "boolean"
       },
       "verifyPeerCertByName": {
         "type": "string"

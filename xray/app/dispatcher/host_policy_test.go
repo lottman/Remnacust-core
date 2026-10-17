@@ -4,11 +4,13 @@ package dispatcher
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	appstats "github.com/xtls/xray-core/app/stats"
 	"github.com/xtls/xray-core/common/buf"
 	xnet "github.com/xtls/xray-core/common/net"
 	"github.com/xtls/xray-core/common/protocol"
@@ -39,6 +41,79 @@ func (w *hostCountingWriter) WriteMultiBuffer(mb buf.MultiBuffer) error {
 	return nil
 }
 
+type delayedHostWriter struct {
+	entered chan struct{}
+	resume  chan struct{}
+}
+
+func (w *delayedHostWriter) WriteMultiBuffer(mb buf.MultiBuffer) error {
+	close(w.entered)
+	<-w.resume
+	buf.ReleaseMulti(mb)
+	return nil
+}
+
+func TestHostPolicyFenceIncludesAdmittedBytesBeforeWriterReturns(t *testing.T) {
+	testHostPolicy(t, hostPolicyDocument{})
+	counter := &appstats.Counter{}
+	sink := &delayedHostWriter{entered: make(chan struct{}), resume: make(chan struct{})}
+	ctx := session.ContextWithInbound(context.Background(), &session.Inbound{User: &protocol.MemoryUser{Email: "123"}})
+	in := &transport.Link{Writer: &SizeStatWriter{Counter: counter, Writer: sink}}
+	out := &transport.Link{Writer: buf.Discard}
+	applyHostPolicy(ctx, in, out)
+	done := make(chan error, 1)
+	go func() { done <- in.Writer.WriteMultiBuffer(buf.MultiBuffer{buf.FromBytes([]byte("admitted"))}) }()
+	select {
+	case <-sink.entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("writer was never reached")
+	}
+	hostPolicies.Lock()
+	hostPolicies.document = hostPolicyDocument{Group: "fence", BlockAll: true, ExpiresAt: time.Now().Add(time.Minute).UnixMilli()}
+	baseline := counter.Set(0)
+	hostPolicies.Unlock()
+	close(sink.resume)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if baseline != 8 || counter.Value() != 0 {
+		t.Fatalf("late accounting crossed fence: baseline=%d late=%d", baseline, counter.Value())
+	}
+	if err := in.Writer.WriteMultiBuffer(buf.MultiBuffer{buf.FromBytes([]byte("denied"))}); err == nil {
+		t.Fatal("fenced writer admitted traffic")
+	}
+	if counter.Value() != 0 {
+		t.Fatal("denied traffic was billed")
+	}
+}
+
+func TestHostPolicyWrappedReaderCountsExactlyOnceAndDeniesBeforeCounting(t *testing.T) {
+	testHostPolicy(t, hostPolicyDocument{})
+	counter := &appstats.Counter{}
+	ctx := session.ContextWithInbound(context.Background(), &session.Inbound{User: &protocol.MemoryUser{Email: "123"}})
+	reader := &buf.TimeoutWrapperReader{Reader: buf.NewReader(strings.NewReader("payload")), Counter: counter}
+	link := &transport.Link{Reader: reader, Writer: buf.Discard}
+	applyHostPolicy(ctx, link, nil)
+	if reader.Counter != nil {
+		t.Fatal("outer timeout reader retained duplicate accounting")
+	}
+	mb, err := link.Reader.ReadMultiBuffer()
+	buf.ReleaseMulti(mb)
+	if err != nil || counter.Value() != 7 {
+		t.Fatalf("reader accounting: %d, %v", counter.Value(), err)
+	}
+	hostPolicies.Lock()
+	hostPolicies.document = hostPolicyDocument{Group: "fence", BlockAll: true, ExpiresAt: time.Now().Add(time.Minute).UnixMilli()}
+	hostPolicies.Unlock()
+	denied := &hostPolicyReader{Reader: buf.NewReader(strings.NewReader("denied")), ctx: ctx, email: "123", counter: counter}
+	if _, err := denied.ReadMultiBuffer(); err == nil {
+		t.Fatal("fenced reader admitted traffic")
+	}
+	if counter.Value() != 7 {
+		t.Fatal("denied reader billed traffic")
+	}
+}
+
 func TestHostPolicySharesSpeedAcrossConnectionsAndDevices(t *testing.T) {
 	testHostPolicy(t, hostPolicyDocument{Group: "tag:test", BytesPerSecond: 524288, ExpiresAt: time.Now().Add(time.Minute).UnixMilli()})
 	sink := &hostCountingWriter{}
@@ -52,7 +127,7 @@ func TestHostPolicySharesSpeedAcrossConnectionsAndDevices(t *testing.T) {
 			if i%2 == 1 {
 				email += "~0123456789abcdef01234567"
 			}
-			writer := hostPolicyWriter{sink, context.Background(), email, "down"}
+			writer := hostPolicyWriter{Writer: sink, ctx: context.Background(), email: email, direction: "down"}
 			for j := 0; j < 16; j++ {
 				if err := writer.WriteMultiBuffer(buf.MultiBuffer{buf.FromBytes(make([]byte, 8192))}); err != nil {
 					t.Error(err)

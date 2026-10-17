@@ -183,6 +183,12 @@ func (w *ReceivingWorker) ProcessSegment(seg *DataSegment) {
 }
 
 func (w *ReceivingWorker) ReadMultiBuffer() buf.MultiBuffer {
+	w.Lock()
+	defer w.Unlock()
+	return w.readMultiBufferLocked()
+}
+
+func (w *ReceivingWorker) readMultiBufferLocked() buf.MultiBuffer {
 	if w.leftOver != nil {
 		mb := w.leftOver
 		w.leftOver = nil
@@ -191,8 +197,6 @@ func (w *ReceivingWorker) ReadMultiBuffer() buf.MultiBuffer {
 
 	mb := make(buf.MultiBuffer, 0, 32)
 
-	w.Lock()
-	defer w.Unlock()
 	for {
 		seg := w.window.Remove(w.nextNumber)
 		if seg == nil {
@@ -207,7 +211,9 @@ func (w *ReceivingWorker) ReadMultiBuffer() buf.MultiBuffer {
 }
 
 func (w *ReceivingWorker) Read(b []byte) int {
-	mb := w.ReadMultiBuffer()
+	w.Lock()
+	defer w.Unlock()
+	mb := w.readMultiBufferLocked()
 	if mb.IsEmpty() {
 		return 0
 	}

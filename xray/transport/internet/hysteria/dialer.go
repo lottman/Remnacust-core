@@ -3,6 +3,7 @@ package hysteria
 import (
 	"context"
 	gotls "crypto/tls"
+	stdnet "net"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -17,6 +18,7 @@ import (
 	"github.com/xtls/xray-core/common/errors"
 	"github.com/xtls/xray-core/common/net"
 	"github.com/xtls/xray-core/common/net/cnc"
+	"github.com/xtls/xray-core/core"
 	"github.com/xtls/xray-core/transport/internet"
 	"github.com/xtls/xray-core/transport/internet/finalmask"
 	"github.com/xtls/xray-core/transport/internet/hysteria/congestion"
@@ -28,6 +30,8 @@ import (
 type client struct {
 	sync.Mutex
 
+	instance     *core.Instance
+	forced       bool
 	dest         net.Destination
 	config       *Config
 	tlsConfig    *gotls.Config
@@ -64,11 +68,14 @@ func (c *client) close() {
 }
 
 func (c *client) dial(ctx context.Context) error {
-	status := c.status()
-	if status == StatusActive {
-		return nil
+	if c.forced {
+		return errors.New("client is closed")
 	}
-	if status == StatusInactive {
+
+	switch c.status() {
+	case StatusActive:
+		return nil
+	case StatusInactive:
 		c.close()
 	}
 
@@ -90,7 +97,7 @@ func (c *client) dial(ctx context.Context) error {
 		ChromeParrot:                   !quicParams.DisableChromeParrot,
 		EnableDatagrams:                true,
 		MaxDatagramFrameSize:           MaxDatagramFrameSize,
-		OmitMaxDatagramFrameSize:       time.Now().After(time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)),
+		OmitMaxDatagramFrameSize:       true,
 		DisablePathManager:             true,
 	}
 	if quicParams.InitStreamReceiveWindow == 0 {
@@ -256,9 +263,12 @@ func (c *client) udp(ctx context.Context) (stat.Connection, error) {
 	return c.udpSM.udp()
 }
 
-func (c *client) clean() {
+func (c *client) clean(force bool) {
 	c.Lock()
-	if c.status() == StatusInactive {
+	if force {
+		c.forced = true
+	}
+	if status := c.status(); force && status != StatusNull || status == StatusInactive {
 		c.close()
 	}
 	c.Unlock()
@@ -278,10 +288,22 @@ func (m *clientManager) clean() {
 	ticker := time.NewTicker(idleCleanupInterval)
 	for range ticker.C {
 		m.RLock()
-		for _, c := range m.m {
-			c.clean()
+		entries := make(map[dialerConf]*client, len(m.m))
+		for k, c := range m.m {
+			entries[k] = c
 		}
 		m.RUnlock()
+		for k, c := range entries {
+			force := c.instance != nil && !c.instance.IsRunning()
+			c.clean(force)
+			if force {
+				m.Lock()
+				if m.m[k] == c {
+					delete(m.m, k)
+				}
+				m.Unlock()
+			}
+		}
 	}
 }
 
@@ -291,6 +313,9 @@ var (
 )
 
 func Dial(ctx context.Context, dest net.Destination, streamSettings *internet.MemoryStreamConfig) (stat.Connection, error) {
+	if streamSettings.IsClosed() {
+		return nil, stdnet.ErrClosed
+	}
 	tlsConfig := tls.ConfigFromStreamSettings(streamSettings)
 	if tlsConfig == nil {
 		return nil, errors.New("tls config is nil")
@@ -306,15 +331,18 @@ func Dial(ctx context.Context, dest net.Destination, streamSettings *internet.Me
 		go manager.clean()
 	})
 
+	dialerConfKey := dialerConf{dest, streamSettings}
+
 	manager.RLock()
-	c := manager.m[dialerConf{dest, streamSettings}]
+	c := manager.m[dialerConfKey]
 	manager.RUnlock()
 
 	if c == nil {
 		manager.Lock()
-		c = manager.m[dialerConf{dest, streamSettings}]
+		c = manager.m[dialerConfKey]
 		if c == nil {
 			c = &client{
+				instance:     core.FromContext(ctx),
 				dest:         dest,
 				config:       streamSettings.ProtocolSettings.(*Config),
 				tlsConfig:    tlsConfig.GetTLSConfig(tls.WithDestination(dest)),
@@ -322,7 +350,18 @@ func Dial(ctx context.Context, dest net.Destination, streamSettings *internet.Me
 				finalMask:    streamSettings.FinalMask,
 				quicParams:   streamSettings.QuicParams,
 			}
-			manager.m[dialerConf{dest, streamSettings}] = c
+			if !streamSettings.AddCloseHook(func() {
+				manager.Lock()
+				if manager.m[dialerConfKey] == c {
+					delete(manager.m, dialerConfKey)
+				}
+				manager.Unlock()
+				c.clean(true)
+			}) {
+				manager.Unlock()
+				return nil, stdnet.ErrClosed
+			}
+			manager.m[dialerConfKey] = c
 		}
 		manager.Unlock()
 	}

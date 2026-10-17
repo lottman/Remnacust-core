@@ -63,7 +63,7 @@ func (c *Commander) Type() interface{} {
 // Start implements common.Runnable.
 func (c *Commander) Start() error {
 	c.Lock()
-	c.server = grpc.NewServer()
+	c.server = grpc.NewServer(grpc.MaxRecvMsgSize(core.RuntimeJournalLimit))
 	for _, service := range c.services {
 		service.Register(c.server)
 	}

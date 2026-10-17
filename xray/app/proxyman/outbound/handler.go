@@ -6,6 +6,7 @@ import (
 	goerrors "errors"
 	"io"
 	"math/big"
+	"sync"
 
 	"github.com/xtls/xray-core/common/dice"
 
@@ -55,6 +56,8 @@ func getStatCounter(v *core.Instance, tag string) (stats.Counter, stats.Counter)
 
 // Handler implements outbound.Handler.
 type Handler struct {
+	closeOnce       sync.Once
+	closeErr        error
 	tag             string
 	senderSettings  *proxyman.SenderConfig
 	streamSettings  *internet.MemoryStreamConfig
@@ -184,7 +187,7 @@ func (h *Handler) Dispatch(ctx context.Context, link *transport.Link) {
 		if ob.Target.Network == net.Network_UDP && ob.OriginalTarget.Address != nil {
 			strategy = strategy.GetDynamicStrategy(ob.OriginalTarget.Address.Family())
 		}
-		ips, err := internet.LookupForIP(ob.Target.Address.Domain(), strategy, nil)
+		ips, err := internet.LookupForIPContext(ctx, ob.Target.Address.Domain(), strategy, nil)
 		if err != nil {
 			errors.LogInfoInner(ctx, err, "failed to resolve ip for target ", ob.Target.Address.Domain())
 			if h.senderSettings.TargetStrategy.ForceIP() {
@@ -329,9 +332,10 @@ func (h *Handler) Start() error {
 
 // Close implements common.Closable.
 func (h *Handler) Close() error {
-	common.Close(h.mux)
-	common.Close(h.proxy)
-	return nil
+	h.closeOnce.Do(func() {
+		h.closeErr = errors.Combine(common.Close(h.mux), common.Close(h.xudp), common.Close(h.proxy), common.Close(h.streamSettings))
+	})
+	return h.closeErr
 }
 
 // SenderSettings implements outbound.Handler.

@@ -11,11 +11,19 @@ import (
 
 // Manager is an implementation of stats.Manager.
 type Manager struct {
-	access     sync.RWMutex
-	counters   map[string]*Counter
-	onlineMaps map[string]*OnlineMap
-	channels   map[string]*Channel
-	running    bool
+	resetAccess sync.Mutex
+	access      sync.RWMutex
+	counters    map[string]*Counter
+	onlineMaps  map[string]*OnlineMap
+	channels    map[string]*Channel
+	running     bool
+}
+
+// LockCounterResets serializes destructive readers without putting a lock on
+// the traffic hot path. Registry visitors must release their lock before IO.
+func (m *Manager) LockCounterResets() func() {
+	m.resetAccess.Lock()
+	return m.resetAccess.Unlock
 }
 
 // NewManager creates an instance of Statistics Manager.

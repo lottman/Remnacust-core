@@ -10,6 +10,13 @@ editor = Path(__file__).resolve().parent
 workspace = editor.parents[1]
 core = workspace / 'xray'
 target = editor / 'assets/xray-remnacust'
+# This is an ignored generated tree. Reusing it after upstream deletes a
+# source file would silently keep both old and new transport implementations.
+expected_target = (editor / 'assets' / 'xray-remnacust').absolute()
+if target.is_symlink() or target.is_junction() or target.resolve() != expected_target:
+    raise RuntimeError('Generated core directory must not redirect outside editor assets')
+if target.exists():
+    shutil.rmtree(target)
 target.mkdir(parents=True, exist_ok=True)
 for source in core.rglob('*'):
     if source.is_file() and source.suffix in {'.go', '.proto', '.mod', '.sum', '.html', '.pem', '.json'}:
@@ -19,6 +26,16 @@ for source in core.rglob('*'):
 
 module = target / 'go.mod'
 module.write_text(module.read_text().replace('../vendor/olcrtc', '../../../../vendor/olcrtc'))
+
+# Resolve the validator against the exact same dependency graph, retaining its
+# local source substitution rather than an independently aging Go module.
+editor_module = (core / 'go.mod').read_text(encoding='utf-8')
+editor_module = editor_module.replace('module github.com/xtls/xray-core', 'module github.com/mmmray/xray-online', 1)
+editor_module = editor_module.replace('require (\n', 'require (\n\tgithub.com/xtls/xray-core v0.0.0\n', 1)
+editor_module = editor_module.replace('../vendor/olcrtc', '../../vendor/olcrtc')
+editor_module += '\nreplace github.com/xtls/xray-core => ./assets/xray-remnacust\n'
+(editor / 'go.mod').write_text(editor_module, encoding='utf-8', newline='\n')
+shutil.copyfile(core / 'go.sum', editor / 'go.sum')
 
 patch = (editor / 'xray-wasm.patch').read_text(encoding='utf-8')
 for chunk in re.split(r'(?=^diff --git )', patch, flags=re.M):
@@ -34,6 +51,13 @@ for chunk in re.split(r'(?=^diff --git )', patch, flags=re.M):
         data = '\n'.join(line[1:] for line in chunk.splitlines() if line.startswith('+') and not line.startswith('+++')) + '\n'
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(data, encoding='utf-8', newline='\n')
+
+# The browser patch excludes the RPC servers themselves. Native receipt methods
+# and the core's WASM runtime shim refer to those servers and cannot be linked
+# into this configuration-only program; protobuf config builders remain intact.
+(target / 'app/proxyman/command/runtime_wasm.go').unlink()
+p = target / 'app/stats/command/usage_receipt.go'
+p.write_text('//go:build !wasm\n\n' + p.read_text(encoding='utf-8'), encoding='utf-8', newline='\n')
 
 # The JS platform has no RawSockaddrUnix, but config validation still checks
 # names against exactly the same Linux abstract socket length.

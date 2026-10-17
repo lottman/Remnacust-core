@@ -411,22 +411,23 @@ type Config struct {
 	// left for returning error
 	Transport map[string]json.RawMessage `json:"transport"`
 
-	Env              EnvConfig               `json:"env"`
-	LogConfig        *LogConfig              `json:"log"`
-	RouterConfig     *RouterConfig           `json:"routing"`
-	DNSConfig        *DNSConfig              `json:"dns"`
-	InboundConfigs   []InboundDetourConfig   `json:"inbounds"`
-	OutboundConfigs  []OutboundDetourConfig  `json:"outbounds"`
-	Policy           *PolicyConfig           `json:"policy"`
-	API              *APIConfig              `json:"api"`
-	Metrics          *MetricsConfig          `json:"metrics"`
-	Stats            *StatsConfig            `json:"stats"`
-	Reverse          *ReverseConfig          `json:"reverse"`
-	FakeDNS          *FakeDNSConfig          `json:"fakeDns"`
-	Observatory      *ObservatoryConfig      `json:"observatory"`
-	BurstObservatory *BurstObservatoryConfig `json:"burstObservatory"`
-	Version          *VersionConfig          `json:"version"`
-	Geodata          *GeodataConfig          `json:"geodata"`
+	Env                        EnvConfig               `json:"env"`
+	LogConfig                  *LogConfig              `json:"log"`
+	RouterConfig               *RouterConfig           `json:"routing"`
+	DNSConfig                  *DNSConfig              `json:"dns"`
+	InboundConfigs             []InboundDetourConfig   `json:"inbounds"`
+	OutboundConfigs            []OutboundDetourConfig  `json:"outbounds"`
+	Policy                     *PolicyConfig           `json:"policy"`
+	API                        *APIConfig              `json:"api"`
+	Metrics                    *MetricsConfig          `json:"metrics"`
+	Stats                      *StatsConfig            `json:"stats"`
+	Reverse                    *ReverseConfig          `json:"reverse"`
+	FakeDNS                    *FakeDNSConfig          `json:"fakeDns"`
+	Observatory                *ObservatoryConfig      `json:"observatory"`
+	BurstObservatory           *BurstObservatoryConfig `json:"burstObservatory"`
+	Version                    *VersionConfig          `json:"version"`
+	Geodata                    *GeodataConfig          `json:"geodata"`
+	RemnacustUserQuotaRequired bool                    `json:"remnacustUserQuotaRequired,omitempty"`
 }
 
 func (c *Config) findInboundTag(tag string) int {
@@ -454,6 +455,7 @@ func (c *Config) findOutboundTag(tag string) int {
 // Override method accepts another Config overrides the current attribute
 func (c *Config) Override(o *Config, fn string) {
 	// only process the non-deprecated members
+	c.RemnacustUserQuotaRequired = c.RemnacustUserQuotaRequired || o.RemnacustUserQuotaRequired
 
 	if o.LogConfig != nil {
 		c.LogConfig = o.LogConfig
@@ -698,6 +700,11 @@ func (c *Config) Build() (*core.Config, error) {
 		config.Outbound = append(config.Outbound, oc)
 	}
 
+	if c.RemnacustUserQuotaRequired {
+		if err := core.RequireUserQuotaConfig(config); err != nil {
+			return nil, err
+		}
+	}
 	return config, nil
 }
 

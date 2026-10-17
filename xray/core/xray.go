@@ -4,9 +4,11 @@ import (
 	"context"
 	"reflect"
 	"sync"
+	"sync/atomic"
 
 	"github.com/xtls/xray-core/common"
 	"github.com/xtls/xray-core/common/errors"
+	clog "github.com/xtls/xray-core/common/log"
 	"github.com/xtls/xray-core/common/platform"
 	"github.com/xtls/xray-core/common/serial"
 	"github.com/xtls/xray-core/features"
@@ -18,9 +20,11 @@ import (
 	"github.com/xtls/xray-core/features/routing"
 	"github.com/xtls/xray-core/features/stats"
 	"github.com/xtls/xray-core/transport/internet"
+	"google.golang.org/protobuf/proto"
 )
 
-// Server is an instance of Xray. At any time, there must be at most one Server instance running.
+// Server is an instance of Xray. New and NewWithContext set process defaults;
+// NewProfile owns an independent graph without replacing those defaults.
 type Server interface {
 	common.Runnable
 }
@@ -80,11 +84,47 @@ func (r *resolution) callbackResolution(allFeatures []features.Feature) error {
 
 // Instance combines all Xray features.
 type Instance struct {
+	isolatedProfile            bool
+	loggingHandler             atomic.Pointer[clog.Handler]
+	closeOnce                  sync.Once
+	closeErr                   error
+	runtimeController          RuntimeController
+	runtimeJournal             string
+	lifecycleAccess            sync.Mutex
+	beforeClose                []func()
+	closing                    bool
+	shutdown                   chan struct{}
+	runtimeAccess              sync.RWMutex
+	managementAccess           sync.Mutex
+	profilePlan                *profilePlanState
+	boundProfilePlan           *profilePlanState
+	profileBindingID           string
+	bindingTrafficOnce         sync.Once
+	bindingTraffic             bindingTrafficCounters
+	profilePlanStarting        atomic.Bool
+	profileRetired             atomic.Bool
+	profilePreparing           atomic.Bool
+	admissionFenced            atomic.Bool
+	scopeParent                *Instance
+	quotaRequirementParent     *Instance
+	accountingParent           *Instance
+	managedProfiles            map[*Instance]struct{}
+	tcpListenerOnce            sync.Once
+	tcpListenerPool            *internet.TCPListenerPool
+	tcpListenerProfile         *internet.TCPListenerProfile
+	tcpListenersStaged         bool
+	runtimeWorkers             map[*runtimeWorkerToken]func()
+	runtimeWorkersDone         sync.WaitGroup
+	initialConfig              *Config
+	hostPolicyRequired         atomic.Value
+	userQuotaRequired          atomic.Bool
+	configAccess               sync.RWMutex
 	statusLock                 sync.Mutex
 	features                   []features.Feature
 	pendingResolutions         []resolution
 	pendingOptionalResolutions []resolution
 	running                    bool
+	startComplete              atomic.Bool
 	resolveLock                sync.Mutex
 
 	ctx context.Context
@@ -92,7 +132,13 @@ type Instance struct {
 
 // Instance state
 func (server *Instance) IsRunning() bool {
-	return server.running
+	server.statusLock.Lock()
+	running := server.running
+	server.statusLock.Unlock()
+	if running && server.scopeParent != nil {
+		return server.scopeParent.IsRunning()
+	}
+	return running
 }
 
 func AddInboundHandler(server *Instance, config *InboundHandlerConfig) error {
@@ -187,13 +233,39 @@ func NewWithContext(ctx context.Context, config *Config) (*Instance, error) {
 }
 
 func initInstanceWithConfig(config *Config, server *Instance) (bool, error) {
-	if err := platform.ReloadEnvSettings(); err != nil {
-		return true, errors.New("failed to reload environment settings").Base(err)
+	if config == nil {
+		return true, errors.New("nil core configuration")
+	}
+	userQuotaRequired, requirementErr := ConfigRequiresUserQuota(config)
+	if requirementErr != nil {
+		return true, requirementErr
+	}
+	bindings, hasPlan, planErr := ConfigProfileBindings(config)
+	if planErr != nil {
+		return true, planErr
+	}
+	if hasPlan {
+		if server.accountingParent != nil {
+			return true, errors.New("a managed graph cannot own a nested profile plan")
+		}
+		server.profilePlan = &profilePlanState{owner: server, bindings: bindings, live: make(map[string]*Instance)}
+		server.profilePlanStarting.Store(true)
+	}
+	server.userQuotaRequired.Store(userQuotaRequired)
+	server.initialConfig = proto.Clone(config).(*Config)
+	server.hostPolicyRequired.Store(hostPolicyTags(config))
+	if !server.isolatedProfile {
+		if err := platform.ReloadEnvSettings(); err != nil {
+			return true, errors.New("failed to reload environment settings").Base(err)
+		}
 	}
 	server.ctx = context.WithValue(server.ctx, "cone",
 		platform.NewEnvFlag(platform.UseCone).GetValue(func() string { return "" }) != "true")
 
 	for _, appSettings := range config.App {
+		if appSettings.Type == UserQuotaRequirementType || appSettings.Type == ProfilePlanType || appSettings.Type == ProfileDeliveryType {
+			continue
+		}
 		settings, err := appSettings.GetInstance()
 		if err != nil {
 			return true, err
@@ -203,6 +275,12 @@ func initInstanceWithConfig(config *Config, server *Instance) (bool, error) {
 			return true, err
 		}
 		if feature, ok := obj.(features.Feature); ok {
+			if server.borrowsAccounting(feature) {
+				if err := feature.Close(); err != nil {
+					return true, err
+				}
+				continue
+			}
 			if err := server.AddFeature(feature); err != nil {
 				return true, err
 			}
@@ -227,13 +305,16 @@ func initInstanceWithConfig(config *Config, server *Instance) (bool, error) {
 		}
 	}
 
-	internet.InitSystemDialer(
-		server.GetFeature(dns.ClientType()).(dns.Client),
-		func() outbound.Manager {
-			obm, _ := server.GetFeature(outbound.ManagerType()).(outbound.Manager)
-			return obm
-		}(),
-	)
+	if !server.isolatedProfile {
+		internet.InitSystemDialer(
+			server.GetFeature(dns.ClientType()).(dns.Client),
+			func() outbound.Manager {
+				obm, _ := server.GetFeature(outbound.ManagerType()).(outbound.Manager)
+				return obm
+			}(),
+		)
+
+	}
 
 	server.resolveLock.Lock()
 	if server.pendingResolutions != nil {
@@ -259,15 +340,70 @@ func (s *Instance) Type() interface{} {
 
 // Close shutdown the Xray instance.
 func (s *Instance) Close() error {
-	s.statusLock.Lock()
-	defer s.statusLock.Unlock()
+	s.closeOnce.Do(func() { s.closeErr = s.close() })
+	return s.closeErr
+}
 
+func (s *Instance) close() error {
+	s.startComplete.Store(false)
+	defer func() {
+		if parent := s.accountingParent; parent != nil {
+			parent.lifecycleAccess.Lock()
+			delete(parent.managedProfiles, s)
+			parent.releaseBindingTrafficLocked(s.profileBindingID)
+			parent.lifecycleAccess.Unlock()
+		}
+	}()
+	s.statusLock.Lock()
 	s.running = false
+	s.startComplete.Store(false)
+	s.statusLock.Unlock()
+	s.lifecycleAccess.Lock()
+	if !s.closing {
+		s.closing = true
+		if s.shutdown != nil {
+			close(s.shutdown)
+		}
+	}
+	callbacks := append([]func(){}, s.beforeClose...)
+	s.beforeClose = nil
+	profiles := make([]*Instance, 0, len(s.managedProfiles))
+	for profile := range s.managedProfiles {
+		profiles = append(profiles, profile)
+	}
+	s.managedProfiles = nil
+	stops := make([]func(), 0, len(s.runtimeWorkers))
+	for _, stop := range s.runtimeWorkers {
+		stops = append(stops, stop)
+	}
+	s.lifecycleAccess.Unlock()
+	for _, callback := range callbacks {
+		callback()
+	}
+	for _, stop := range stops {
+		stop()
+	}
 
 	var errs []interface{}
+	for _, profile := range profiles {
+		if err := profile.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
 	for _, f := range s.features {
+		if reflect.TypeOf(f.Type()) == reflect.TypeOf(stats.ManagerType()) {
+			continue
+		}
 		if err := f.Close(); err != nil {
 			errs = append(errs, err)
+		}
+	}
+	s.runtimeWorkersDone.Wait()
+	for _, f := range s.features {
+		if reflect.TypeOf(f.Type()) == reflect.TypeOf(stats.ManagerType()) && !s.borrowsAccounting(f) {
+			if err := f.Close(); err != nil {
+				errs = append(errs, err)
+			}
 		}
 	}
 	if len(errs) > 0 {
@@ -320,7 +456,7 @@ func (s *Instance) RequireFeatures(callback interface{}, optional bool) error {
 
 // AddFeature registers a feature into current Instance.
 func (s *Instance) AddFeature(feature features.Feature) error {
-	if s.running {
+	if s.IsRunning() {
 		if err := feature.Start(); err != nil {
 			errors.LogInfoInner(s.ctx, err, "failed to start feature")
 		}
@@ -329,6 +465,9 @@ func (s *Instance) AddFeature(feature features.Feature) error {
 
 	s.resolveLock.Lock()
 	s.features = append(s.features, feature)
+	if handler, ok := feature.(clog.Handler); ok {
+		s.loggingHandler.Store(&handler)
+	}
 
 	var availableResolution []resolution
 	var pending []resolution
@@ -387,15 +526,52 @@ func (s *Instance) GetFeature(featureType interface{}) features.Feature {
 func (s *Instance) Start() error {
 	s.statusLock.Lock()
 	defer s.statusLock.Unlock()
+	s.lifecycleAccess.Lock()
+	closing := s.closing
+	s.lifecycleAccess.Unlock()
+	if closing {
+		return errors.New("a closed core instance cannot be restarted")
+	}
+	if s.accountingParent != nil && !s.accountingParent.startComplete.Load() {
+		return errors.New("the managed profile accounting owner is not running")
+	}
+	if s.profilePlan != nil && s.runtimeJournal == "" {
+		return errors.New("a managed profile plan requires a durable native checkpoint")
+	}
+	s.startComplete.Store(false)
 
+	for _, f := range s.features {
+		if s.borrowsAccounting(f) {
+			continue
+		}
+		if preparer, ok := f.(features.StartPreparer); ok {
+			if err := preparer.PrepareStart(); err != nil {
+				return err
+			}
+		}
+	}
 	s.running = true
 	for _, f := range s.features {
+		if s.borrowsAccounting(f) {
+			continue
+		}
 		if err := f.Start(); err != nil {
 			return err
 		}
 	}
+	if err := s.SaveRuntimeConfiguration(s.Configuration()); err != nil {
+		return err
+	}
 
 	errors.LogWarning(s.ctx, "Xray ", Version(), " started")
+	s.startComplete.Store(true)
+	if s.profilePlan != nil {
+		if err := s.profilePlan.start(); err != nil {
+			s.startComplete.Store(false)
+			return err
+		}
+		s.profilePlanStarting.Store(false)
+	}
 
 	return nil
 }

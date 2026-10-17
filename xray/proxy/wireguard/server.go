@@ -261,13 +261,16 @@ func (s *Server) Start() error {
 	if s.src.Address.Family().IsDomain() {
 		return errors.New("address is domain")
 	}
+	if err := internet.CheckPacketListenerProfile(s.ctx); err != nil {
+		return err
+	}
 	listenFunc := func() (net.PacketConn, error) {
 		var pktConn net.PacketConn
 		var err error
 		if s.streamSettings.FinalMask != nil {
-			pktConn, err = s.streamSettings.FinalMask.ListenPacket(context.Background(), &net.UDPAddr{IP: s.src.Address.IP(), Port: int(s.src.Port)})
+			pktConn, err = s.streamSettings.FinalMask.ListenPacket(s.ctx, &net.UDPAddr{IP: s.src.Address.IP(), Port: int(s.src.Port)})
 		} else {
-			pktConn, err = internet.ListenSystemPacket(context.Background(), &net.UDPAddr{IP: s.src.Address.IP(), Port: int(s.src.Port)}, s.streamSettings.SocketSettings)
+			pktConn, err = internet.ListenSystemPacket(s.ctx, &net.UDPAddr{IP: s.src.Address.IP(), Port: int(s.src.Port)}, s.streamSettings.SocketSettings)
 		}
 		if err != nil {
 			return nil, err
@@ -286,13 +289,13 @@ func (s *Server) Start() error {
 	}
 	logger := &device.Logger{
 		Verbosef: func(format string, args ...any) {
-			log.Record(&log.GeneralMessage{
+			log.RecordContext(s.ctx, &log.GeneralMessage{
 				Severity: log.Severity_Debug,
 				Content:  fmt.Sprintf(format, args...),
 			})
 		},
 		Errorf: func(format string, args ...any) {
-			log.Record(&log.GeneralMessage{
+			log.RecordContext(s.ctx, &log.GeneralMessage{
 				Severity: log.Severity_Error,
 				Content:  fmt.Sprintf(format, args...),
 			})

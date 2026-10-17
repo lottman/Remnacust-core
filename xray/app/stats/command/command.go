@@ -4,9 +4,11 @@ import (
 	"context"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/xtls/xray-core/common"
+	"github.com/xtls/xray-core/common/quotausage"
 	"github.com/xtls/xray-core/core"
 	feature_stats "github.com/xtls/xray-core/features/stats"
 	grpc "google.golang.org/grpc"
@@ -16,18 +18,33 @@ import (
 
 // statsServer is an implementation of StatsService.
 type statsServer struct {
-	stats     feature_stats.Manager
-	startTime time.Time
+	stats       feature_stats.Manager
+	startTime   time.Time
+	resetAccess sync.Mutex
+	usagePath   string
+	usageSeen   bool
+	usageErr    error
+	usageSave   func(string, *usageJournal) error
 }
 
 func NewStatsServer(manager feature_stats.Manager) StatsServiceServer {
 	return &statsServer{
 		stats:     manager,
 		startTime: time.Now(),
+		usagePath: usageJournalPath,
 	}
 }
 
 func (s *statsServer) GetStats(ctx context.Context, request *GetStatsRequest) (*GetStatsResponse, error) {
+	if request.Reset_ {
+		unlock := s.lockResets()
+		defer unlock()
+		if strings.HasPrefix(request.Name, "user>>>") || strings.HasPrefix(request.Name, quotausage.Prefix) {
+			if err := s.legacyUserReset(); err != nil {
+				return nil, err
+			}
+		}
+	}
 	c := s.stats.GetCounter(request.Name)
 	if c == nil {
 		return nil, status.Error(codes.NotFound, request.Name+" not found.")
@@ -86,6 +103,13 @@ func (s *statsServer) GetAllOnlineUsers(ctx context.Context, request *GetAllOnli
 }
 
 func (s *statsServer) GetUsersStats(ctx context.Context, request *GetUsersStatsRequest) (*GetUsersStatsResponse, error) {
+	if request.Reset_ && request.IncludeTraffic {
+		unlock := s.lockResets()
+		defer unlock()
+		if err := s.legacyUserReset(); err != nil {
+			return nil, err
+		}
+	}
 	userMap := make(map[string]*UserStat)
 
 	s.stats.VisitOnlineMaps(func(name string, om feature_stats.OnlineMap) bool {
@@ -120,6 +144,9 @@ func (s *statsServer) GetUsersStats(ctx context.Context, request *GetUsersStatsR
 			suffixDownlink = ">>>traffic>>>downlink"
 		)
 		s.stats.VisitCounters(func(name string, c feature_stats.Counter) bool {
+			if !strings.HasPrefix(name, prefixUser) {
+				return true
+			}
 			var email string
 			var isUplink bool
 
@@ -162,23 +189,42 @@ func (s *statsServer) GetUsersStats(ctx context.Context, request *GetUsersStatsR
 }
 
 func (s *statsServer) QueryStats(ctx context.Context, request *QueryStatsRequest) (*QueryStatsResponse, error) {
-	response := &QueryStatsResponse{}
-
-	s.stats.VisitCounters(func(name string, c feature_stats.Counter) bool {
+	type selectedCounter struct {
+		name    string
+		counter feature_stats.Counter
+	}
+	var selected []selectedCounter
+	if request.Reset_ {
+		unlock := s.lockResets()
+		defer unlock()
+	}
+	userMatch := false
+	s.stats.VisitCounters(func(name string, counter feature_stats.Counter) bool {
 		if strings.Contains(name, request.Pattern) {
-			var value int64
-			if request.Reset_ {
-				value = c.Set(0)
-			} else {
-				value = c.Value()
-			}
-			response.Stat = append(response.Stat, &Stat{
-				Name:  name,
-				Value: value,
-			})
+			selected = append(selected, selectedCounter{name, counter})
+			userMatch = userMatch || strings.HasPrefix(name, "user>>>") || strings.HasPrefix(name, quotausage.Prefix)
 		}
 		return true
 	})
+	if request.Reset_ && userMatch {
+		if err := s.legacyUserReset(); err != nil {
+			return nil, err
+		}
+	}
+	response := &QueryStatsResponse{}
+	for _, entry := range selected {
+		name, c := entry.name, entry.counter
+		var value int64
+		if request.Reset_ {
+			value = c.Set(0)
+		} else {
+			value = c.Value()
+		}
+		response.Stat = append(response.Stat, &Stat{
+			Name:  name,
+			Value: value,
+		})
+	}
 
 	return response, nil
 }
@@ -214,6 +260,7 @@ type service struct {
 func (s *service) Register(server *grpc.Server) {
 	ss := NewStatsServer(s.statsManager)
 	RegisterStatsServiceServer(server, ss)
+	registerUsageReceipts(server, ss.(*statsServer))
 
 	// For compatibility purposes
 	vCoreDesc := StatsService_ServiceDesc

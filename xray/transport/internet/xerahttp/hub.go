@@ -20,7 +20,6 @@ import (
 
 	"github.com/apernet/quic-go"
 	"github.com/apernet/quic-go/http3"
-	goreality "github.com/xtls/reality"
 	"github.com/xtls/xray-core/common"
 	"github.com/xtls/xray-core/common/buf"
 	"github.com/xtls/xray-core/common/errors"
@@ -604,11 +603,7 @@ func ListenXH(ctx context.Context, address net.Address, port net.Port, streamSet
 	} else if l.isH3 {
 		var Conn net.PacketConn
 		addr := &net.UDPAddr{IP: address.IP(), Port: int(port)}
-		if streamSettings.FinalMask != nil {
-			Conn, err = streamSettings.FinalMask.ListenPacket(ctx, addr)
-		} else {
-			Conn, err = internet.ListenSystemPacket(ctx, addr, streamSettings.SocketSettings)
-		}
+		Conn, err = internet.ListenProfileQUICPacket(ctx, addr, streamSettings)
 		if err != nil {
 			return nil, errors.New("failed to listen UDP for XERA-HTTP/3 on ", address, ":", port).Base(err)
 		}
@@ -637,6 +632,10 @@ func ListenXH(ctx context.Context, address net.Address, port net.Port, streamSet
 		}
 
 		tr := &quic.Transport{Conn: Conn, DisableGSO: quicParams.DisableGSO, StatelessResetKey: k}
+		if err := internet.ConfigureProfileQUIC(ctx, tr); err != nil {
+			_ = Conn.Close()
+			return nil, err
+		}
 
 		l.h3listener, err = tr.ListenEarly(tlsConfig, quicConfig)
 		if err != nil {
@@ -678,7 +677,7 @@ func ListenXH(ctx context.Context, address net.Address, port net.Port, streamSet
 			}
 		}
 		if config := reality.ConfigFromStreamSettings(streamSettings); config != nil {
-			l.listener = goreality.NewListener(l.listener, config.GetREALITYConfig())
+			l.listener = reality.NewListener(ctx, l.listener, config.GetREALITYConfig())
 		}
 
 		handler.localAddr = l.listener.Addr()

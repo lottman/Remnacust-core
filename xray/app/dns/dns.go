@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/xtls/xray-core/common"
 	"github.com/xtls/xray-core/common/errors"
@@ -20,6 +21,9 @@ import (
 
 // DNS is a DNS rely server.
 type DNS struct {
+	closed    atomic.Bool
+	closeOnce sync.Once
+	closeErr  error
 	sync.Mutex
 	disableFallback        bool
 	disableFallbackIfMatch bool
@@ -31,6 +35,8 @@ type DNS struct {
 	domainMatcher          geodata.DomainMatcher
 	matcherInfos           []*DomainMatcherInfo
 	checkSystem            bool
+	script                 *scriptEngine
+	scriptPath             string
 }
 
 // DomainMatcherInfo contains information attached to index returned by Server.domainMatcher.
@@ -180,6 +186,7 @@ func New(ctx context.Context, config *Config) (*DNS, error) {
 		disableFallbackIfMatch: config.DisableFallbackIfMatch,
 		enableParallelQuery:    config.EnableParallelQuery,
 		checkSystem:            checkSystem,
+		scriptPath:             config.Script,
 	}, nil
 }
 
@@ -190,12 +197,37 @@ func (*DNS) Type() interface{} {
 
 // Start implements common.Runnable.
 func (s *DNS) Start() error {
+	if s.closed.Load() {
+		return context.Canceled
+	}
+	if s.scriptPath != "" {
+		engine, err := newScriptEngine(s.scriptPath, s)
+		if err != nil {
+			return errors.New("failed to initialize DNS script").Base(err)
+		}
+		s.script = engine
+	}
 	return nil
 }
 
 // Close implements common.Closable.
 func (s *DNS) Close() error {
-	return nil
+	s.closeOnce.Do(func() {
+		s.closed.Store(true)
+		var failures []error
+		for _, client := range s.clients {
+			if closer, ok := client.server.(interface{ Close() error }); ok {
+				failures = append(failures, closer.Close())
+			} else if cached, ok := client.server.(CachedNameserver); ok {
+				failures = append(failures, cached.getCacheController().Close())
+			}
+		}
+		if s.script != nil {
+			s.script.close()
+		}
+		s.closeErr = errors.Combine(failures...)
+	})
+	return s.closeErr
 }
 
 // IsOwnLink implements proxy.dns.ownLinkVerifier
@@ -236,6 +268,9 @@ func (s *DNS) MayUseSystemResolver() bool {
 
 // LookupIP implements dns.Client.
 func (s *DNS) LookupIP(domain string, option dns.IPOption) ([]net.IP, uint32, error) {
+	if s.closed.Load() {
+		return nil, 0, context.Canceled
+	}
 	// Normalize the FQDN form query
 	domain = strings.TrimSuffix(domain, ".")
 	if domain == "" {
@@ -279,6 +314,9 @@ func (s *DNS) LookupIP(domain string, option dns.IPOption) ([]net.IP, uint32, er
 	}
 
 	// Name servers lookup
+	if s.script != nil {
+		return s.script.query(domain, option)
+	}
 	if s.enableParallelQuery {
 		return s.parallelQuery(domain, option)
 	} else {

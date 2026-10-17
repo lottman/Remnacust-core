@@ -10,11 +10,13 @@ import (
 	"github.com/xtls/xray-core/common/buf"
 	c "github.com/xtls/xray-core/common/ctx"
 	"github.com/xtls/xray-core/common/errors"
+	"github.com/xtls/xray-core/common/mux"
 	"github.com/xtls/xray-core/common/net"
 	"github.com/xtls/xray-core/common/serial"
 	"github.com/xtls/xray-core/common/session"
 	"github.com/xtls/xray-core/common/signal/done"
 	"github.com/xtls/xray-core/common/task"
+	"github.com/xtls/xray-core/core"
 	"github.com/xtls/xray-core/features/routing"
 	"github.com/xtls/xray-core/features/stats"
 	"github.com/xtls/xray-core/proxy"
@@ -34,7 +36,15 @@ type worker interface {
 	Proxy() proxy.Inbound
 }
 
+func trackRuntimeWorker(ctx context.Context, close func()) (func(), bool) {
+	if instance := core.FromContext(ctx); instance != nil {
+		return instance.TrackRuntimeWorker(close)
+	}
+	return func() {}, true
+}
+
 type tcpWorker struct {
+	runtime         *RuntimeSlot
 	address         net.Address
 	port            net.Port
 	proxy           proxy.Inbound
@@ -59,7 +69,23 @@ func getTProxyType(s *internet.MemoryStreamConfig) internet.SocketConfig_TProxyM
 }
 
 func (w *tcpWorker) callback(conn stat.Connection) {
-	ctx, cancel := context.WithCancel(w.ctx)
+	finished, ok := trackRuntimeWorker(w.ctx, func() { _ = conn.Close() })
+	if !ok {
+		_ = conn.Close()
+		return
+	}
+	defer finished()
+	baseContext, dispatcher := w.ctx, w.dispatcher
+	if w.runtime != nil {
+		generation, release, ok := w.runtime.Acquire()
+		if !ok {
+			conn.Close()
+			return
+		}
+		defer release()
+		baseContext, dispatcher = core.RuntimeContext(w.ctx, generation.Context), mux.NewServerWithDispatchers(&runtimeAuthDispatcher{Dispatcher: generation.Dispatcher, proxy: w.proxy, barrier: w.runtime.barrier}, &runtimeMuxDispatcher{Dispatcher: generation.Dispatcher, slot: w.runtime, proxy: w.proxy}, release)
+	}
+	ctx, cancel := context.WithCancel(baseContext)
 	sid := session.NewID()
 	ctx = c.ContextWithID(ctx, sid)
 
@@ -102,10 +128,11 @@ func (w *tcpWorker) callback(conn stat.Connection) {
 	ctx = session.ContextWithOutbounds(ctx, outbounds)
 
 	if w.uplinkCounter != nil || w.downlinkCounter != nil {
+		up, down := core.ProfileTrafficCounters(w.ctx, w.uplinkCounter, w.downlinkCounter)
 		conn = &stat.CounterConnection{
 			Connection:   conn,
-			ReadCounter:  w.uplinkCounter,
-			WriteCounter: w.downlinkCounter,
+			ReadCounter:  up,
+			WriteCounter: down,
 		}
 	}
 	ctx = session.ContextWithInbound(ctx, &session.Inbound{
@@ -120,7 +147,7 @@ func (w *tcpWorker) callback(conn stat.Connection) {
 	content.SniffingRequest = w.sniffingRequest
 	ctx = session.ContextWithContent(ctx, content)
 
-	if err := w.proxy.Process(ctx, net.Network_TCP, conn, w.dispatcher); err != nil {
+	if err := w.proxy.Process(ctx, net.Network_TCP, conn, dispatcher); err != nil {
 		errors.LogInfoInner(ctx, err, "connection ends")
 	}
 	cancel()
@@ -132,7 +159,7 @@ func (w *tcpWorker) Proxy() proxy.Inbound {
 }
 
 func (w *tcpWorker) Start() error {
-	ctx := context.Background()
+	ctx := context.WithoutCancel(w.ctx)
 
 	if v, ok := w.proxy.(*hysteria_proxy.Server); ok {
 		ctx = hysteria.ContextWithValidator(ctx, v.HysteriaInboundValidator())
@@ -154,9 +181,6 @@ func (w *tcpWorker) Close() error {
 		if err := common.Close(w.hub); err != nil {
 			errs = append(errs, err)
 		}
-		if err := common.Close(w.proxy); err != nil {
-			errs = append(errs, err)
-		}
 	}
 	if len(errs) > 0 {
 		return errors.New("failed to close all resources").Base(errors.New(serial.Concat(errs...)))
@@ -170,6 +194,10 @@ func (w *tcpWorker) Port() net.Port {
 }
 
 type udpConn struct {
+	access           sync.Mutex
+	runtime          *RuntimeGeneration
+	releaseRuntime   func()
+	releasePacket    func()
 	lastActivityTime int64 // in seconds
 	reader           buf.Reader
 	writer           buf.Writer
@@ -179,12 +207,20 @@ type udpConn struct {
 	done             *done.Instance
 	uplink           stats.Counter
 	downlink         stats.Counter
-	inactive         bool
+	inactive         atomic.Bool
 	cancel           context.CancelFunc
 }
 
-func (c *udpConn) setInactive() {
-	c.inactive = true
+func (c *udpConn) setInactive() { c.inactive.Store(true) }
+
+func (c *udpConn) setCancel(cancel context.CancelFunc) {
+	c.access.Lock()
+	c.cancel = cancel
+	closed := c.done.Done()
+	c.access.Unlock()
+	if closed {
+		cancel()
+	}
 }
 
 func (c *udpConn) updateActivity() {
@@ -223,11 +259,16 @@ func (c *udpConn) Write(buf []byte) (int, error) {
 }
 
 func (c *udpConn) Close() error {
+	c.access.Lock()
+	defer c.access.Unlock()
 	if c.cancel != nil {
 		c.cancel()
 	}
 	common.Must(c.done.Close())
 	common.Must(common.Close(c.writer))
+	if c.releasePacket != nil {
+		c.releasePacket()
+	}
 	return nil
 }
 
@@ -257,6 +298,9 @@ type connID struct {
 }
 
 type udpWorker struct {
+	lifecycle sync.Mutex
+	closed    bool
+	runtime   *RuntimeSlot
 	sync.RWMutex
 
 	proxy           proxy.Inbound
@@ -280,6 +324,9 @@ type udpWorker struct {
 func (w *udpWorker) getConnection(id connID) (*udpConn, bool) {
 	w.Lock()
 	defer w.Unlock()
+	if w.closed {
+		return nil, false
+	}
 
 	if conn, found := w.activeConn[id]; found && !conn.done.Done() {
 		conn.updateActivity()
@@ -287,9 +334,33 @@ func (w *udpWorker) getConnection(id connID) (*udpConn, bool) {
 	}
 
 	pReader, pWriter := pipe.New(pipe.DiscardOverflow(), pipe.WithSizeLimit(16*1024))
+	var generation *RuntimeGeneration
+	var release func()
+	if w.runtime != nil {
+		var ok bool
+		generation, release, ok = w.runtime.Acquire()
+		if !ok {
+			pReader.Interrupt()
+			pWriter.Close()
+			return nil, false
+		}
+	}
+	packetRelease, err := w.hub.AcquirePacketPeer(id.src)
+	if err != nil {
+		pReader.Interrupt()
+		pWriter.Close()
+		if release != nil {
+			release()
+		}
+		return nil, false
+	}
+	up, down := core.ProfileTrafficCounters(w.ctx, w.uplinkCounter, w.downlinkCounter)
 	conn := &udpConn{
-		reader: pReader,
-		writer: pWriter,
+		runtime:        generation,
+		releaseRuntime: release,
+		releasePacket:  packetRelease,
+		reader:         pReader,
+		writer:         pWriter,
 		output: func(b []byte) (int, error) {
 			return w.hub.WriteTo(b, id.src)
 		},
@@ -302,8 +373,8 @@ func (w *udpWorker) getConnection(id connID) (*udpConn, bool) {
 			Port: int(w.port),
 		},
 		done:     done.New(),
-		uplink:   w.uplinkCounter,
-		downlink: w.downlinkCounter,
+		uplink:   up,
+		downlink: down,
 	}
 	w.activeConn[id] = conn
 
@@ -312,6 +383,8 @@ func (w *udpWorker) getConnection(id connID) (*udpConn, bool) {
 }
 
 func (w *udpWorker) callback(b *buf.Buffer, source net.Destination, originalDest net.Destination) {
+	w.lifecycle.Lock()
+	defer w.lifecycle.Unlock()
 	id := connID{
 		src: source,
 	}
@@ -322,6 +395,10 @@ func (w *udpWorker) callback(b *buf.Buffer, source net.Destination, originalDest
 		b.UDP = &originalDest
 	}
 	conn, existing := w.getConnection(id)
+	if conn == nil {
+		b.Release()
+		return
+	}
 
 	// payload will be discarded in pipe is full.
 	conn.writer.WriteMultiBuffer(buf.MultiBuffer{b})
@@ -330,8 +407,24 @@ func (w *udpWorker) callback(b *buf.Buffer, source net.Destination, originalDest
 		common.Must(w.checker.Start())
 
 		go func() {
-			ctx, cancel := context.WithCancel(w.ctx)
-			conn.cancel = cancel
+			finished, accepted := trackRuntimeWorker(w.ctx, func() { _ = conn.Close() })
+			if !accepted {
+				_ = conn.Close()
+				if conn.releaseRuntime != nil {
+					conn.releaseRuntime()
+				}
+				conn.setInactive()
+				w.removeConn(id, conn)
+				return
+			}
+			defer finished()
+			baseContext, dispatcher := w.ctx, w.dispatcher
+			if conn.runtime != nil {
+				baseContext, dispatcher = core.RuntimeContext(w.ctx, conn.runtime.Context), mux.NewServerWithDispatchers(&runtimeAuthDispatcher{Dispatcher: conn.runtime.Dispatcher, proxy: w.proxy, barrier: w.runtime.barrier}, &runtimeMuxDispatcher{Dispatcher: conn.runtime.Dispatcher, slot: w.runtime, proxy: w.proxy}, conn.releaseRuntime)
+				defer conn.releaseRuntime()
+			}
+			ctx, cancel := context.WithCancel(baseContext)
+			conn.setCancel(cancel)
 			sid := session.NewID()
 			ctx = c.ContextWithID(ctx, sid)
 
@@ -358,22 +451,24 @@ func (w *udpWorker) callback(b *buf.Buffer, source net.Destination, originalDest
 			content := new(session.Content)
 			content.SniffingRequest = w.sniffingRequest
 			ctx = session.ContextWithContent(ctx, content)
-			if err := w.proxy.Process(ctx, net.Network_UDP, conn, w.dispatcher); err != nil {
+			if err := w.proxy.Process(ctx, net.Network_UDP, conn, dispatcher); err != nil {
 				errors.LogInfoInner(ctx, err, "connection ends")
 			}
 			conn.Close()
 			// conn not removed by checker TODO may be lock worker here is better
-			if !conn.inactive {
+			if !conn.inactive.Load() {
 				conn.setInactive()
-				w.removeConn(id)
+				w.removeConn(id, conn)
 			}
 		}()
 	}
 }
 
-func (w *udpWorker) removeConn(id connID) {
+func (w *udpWorker) removeConn(id connID, connection *udpConn) {
 	w.Lock()
-	delete(w.activeConn, id)
+	if w.activeConn[id] == connection {
+		delete(w.activeConn, id)
+	}
 	w.Unlock()
 }
 
@@ -395,7 +490,7 @@ func (w *udpWorker) clean() error {
 
 	for addr, conn := range w.activeConn {
 		if nowSec-atomic.LoadInt64(&conn.lastActivityTime) > 2*60 {
-			if !conn.inactive {
+			if !conn.inactive.Load() {
 				conn.setInactive()
 				delete(w.activeConn, addr)
 			}
@@ -412,8 +507,8 @@ func (w *udpWorker) clean() error {
 
 func (w *udpWorker) Start() error {
 	w.activeConn = make(map[connID]*udpConn, 16)
-	ctx := context.Background()
-	h, err := udp.ListenUDP(ctx, w.address, w.port, w.stream, udp.HubCapacity(256))
+	ctx := context.WithoutCancel(w.ctx)
+	h, err := udp.ListenUDP(ctx, w.address, w.port, w.stream, udp.HubCapacity(256), udp.HubTrackNativeFlows())
 	if err != nil {
 		return err
 	}
@@ -431,8 +526,16 @@ func (w *udpWorker) Start() error {
 }
 
 func (w *udpWorker) Close() error {
+	w.lifecycle.Lock()
+	defer w.lifecycle.Unlock()
 	w.Lock()
 	defer w.Unlock()
+	w.closed = true
+	for _, connection := range w.activeConn {
+		connection.setInactive()
+		_ = connection.Close()
+	}
+	w.activeConn = nil
 
 	var errs []interface{}
 
@@ -446,10 +549,6 @@ func (w *udpWorker) Close() error {
 		if err := w.checker.Close(); err != nil {
 			errs = append(errs, err)
 		}
-	}
-
-	if err := common.Close(w.proxy); err != nil {
-		errs = append(errs, err)
 	}
 
 	if len(errs) > 0 {
@@ -467,6 +566,7 @@ func (w *udpWorker) Proxy() proxy.Inbound {
 }
 
 type dsWorker struct {
+	runtime         *RuntimeSlot
 	address         net.Address
 	proxy           proxy.Inbound
 	stream          *internet.MemoryStreamConfig
@@ -482,15 +582,32 @@ type dsWorker struct {
 }
 
 func (w *dsWorker) callback(conn stat.Connection) {
-	ctx, cancel := context.WithCancel(w.ctx)
+	finished, ok := trackRuntimeWorker(w.ctx, func() { _ = conn.Close() })
+	if !ok {
+		_ = conn.Close()
+		return
+	}
+	defer finished()
+	baseContext, dispatcher := w.ctx, w.dispatcher
+	if w.runtime != nil {
+		generation, release, ok := w.runtime.Acquire()
+		if !ok {
+			conn.Close()
+			return
+		}
+		defer release()
+		baseContext, dispatcher = core.RuntimeContext(w.ctx, generation.Context), mux.NewServerWithDispatchers(&runtimeAuthDispatcher{Dispatcher: generation.Dispatcher, proxy: w.proxy, barrier: w.runtime.barrier}, &runtimeMuxDispatcher{Dispatcher: generation.Dispatcher, slot: w.runtime, proxy: w.proxy}, release)
+	}
+	ctx, cancel := context.WithCancel(baseContext)
 	sid := session.NewID()
 	ctx = c.ContextWithID(ctx, sid)
 
 	if w.uplinkCounter != nil || w.downlinkCounter != nil {
+		up, down := core.ProfileTrafficCounters(w.ctx, w.uplinkCounter, w.downlinkCounter)
 		conn = &stat.CounterConnection{
 			Connection:   conn,
-			ReadCounter:  w.uplinkCounter,
-			WriteCounter: w.downlinkCounter,
+			ReadCounter:  up,
+			WriteCounter: down,
 		}
 	}
 	ctx = session.ContextWithInbound(ctx, &session.Inbound{
@@ -505,7 +622,7 @@ func (w *dsWorker) callback(conn stat.Connection) {
 	content.SniffingRequest = w.sniffingRequest
 	ctx = session.ContextWithContent(ctx, content)
 
-	if err := w.proxy.Process(ctx, net.Network_UNIX, conn, w.dispatcher); err != nil {
+	if err := w.proxy.Process(ctx, net.Network_UNIX, conn, dispatcher); err != nil {
 		errors.LogInfoInner(ctx, err, "connection ends")
 	}
 	cancel()
@@ -523,7 +640,7 @@ func (w *dsWorker) Port() net.Port {
 }
 
 func (w *dsWorker) Start() error {
-	ctx := context.Background()
+	ctx := context.WithoutCancel(w.ctx)
 	hub, err := internet.ListenUnix(ctx, w.address, w.stream, func(conn stat.Connection) {
 		go w.callback(conn)
 	})
@@ -538,9 +655,6 @@ func (w *dsWorker) Close() error {
 	var errs []interface{}
 	if w.hub != nil {
 		if err := common.Close(w.hub); err != nil {
-			errs = append(errs, err)
-		}
-		if err := common.Close(w.proxy); err != nil {
 			errs = append(errs, err)
 		}
 	}

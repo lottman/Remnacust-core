@@ -13,6 +13,7 @@ import (
 	"github.com/xtls/xray-core/common/net"
 	"github.com/xtls/xray-core/common/protocol"
 	"github.com/xtls/xray-core/common/signal/done"
+	"github.com/xtls/xray-core/core"
 	"github.com/xtls/xray-core/transport/pipe"
 )
 
@@ -157,6 +158,7 @@ func (m *SessionManager) Close() error {
 
 // Session represents a client connection in a Mux connection.
 type Session struct {
+	release      func()
 	input        buf.Reader
 	output       buf.Writer
 	parent       *SessionManager
@@ -184,6 +186,10 @@ func (s *Session) Close(locked bool) error {
 	if s.XUDP == nil {
 		common.Interrupt(s.input)
 		common.Close(s.output)
+		if s.release != nil {
+			s.release()
+			s.release = nil
+		}
 	} else {
 		// Stop existing handle(), then trigger writer.Close().
 		// Note that s.output may be dispatcher.SizeStatWriter.
@@ -218,37 +224,56 @@ const (
 )
 
 type XUDP struct {
-	GlobalID [8]byte
-	Status   uint64
-	Expire   time.Time
-	Mux      *Session
+	Key         XUDPSessionKey
+	release     func()
+	releaseOnce sync.Once
+	GlobalID    [8]byte
+	Status      uint64
+	Expire      time.Time
+	Mux         *Session
 }
 
 func (x *XUDP) Interrupt() {
 	common.Interrupt(x.Mux.input)
 	common.Close(x.Mux.output)
+	x.releaseOnce.Do(func() {
+		if x.release != nil {
+			x.release()
+		}
+	})
+}
+
+type XUDPSessionKey struct {
+	Core                *core.Instance
+	Tag, Port, Identity string
+	Credential          [32]byte
+	GlobalID            [8]byte
 }
 
 var XUDPManager struct {
 	sync.Mutex
-	Map map[[8]byte]*XUDP
+	Map map[XUDPSessionKey]*XUDP
 }
 
 func init() {
-	XUDPManager.Map = make(map[[8]byte]*XUDP)
+	XUDPManager.Map = make(map[XUDPSessionKey]*XUDP)
 	go func() {
 		for {
 			time.Sleep(time.Minute)
 			now := time.Now()
 			XUDPManager.Lock()
+			var expired []*XUDP
 			for id, x := range XUDPManager.Map {
 				if x.Status == Expiring && now.After(x.Expire) {
-					x.Interrupt()
+					expired = append(expired, x)
 					delete(XUDPManager.Map, id)
 					errors.LogDebug(context.Background(), "XUDP del ", id)
 				}
 			}
 			XUDPManager.Unlock()
+			for _, x := range expired {
+				x.Interrupt()
+			}
 		}
 	}()
 }

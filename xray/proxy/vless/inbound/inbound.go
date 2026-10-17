@@ -278,7 +278,7 @@ func (h *Handler) Process(ctx context.Context, network net.Network, connection s
 		}
 	}
 
-	sessionPolicy := h.policyManager.ForLevel(0)
+	sessionPolicy := core.PolicyForContext(ctx, h.policyManager).ForLevel(0)
 	if err := connection.SetReadDeadline(time.Now().Add(sessionPolicy.Timeouts.Handshake)); err != nil {
 		return errors.New("unable to set read deadline").Base(err)
 	}
@@ -513,7 +513,7 @@ func (h *Handler) Process(ctx context.Context, network net.Network, connection s
 		}
 
 		if errors.Cause(err) != io.EOF {
-			log.Record(&log.AccessMessage{
+			log.RecordContext(ctx, &log.AccessMessage{
 				From:   connection.RemoteAddr(),
 				To:     "",
 				Status: log.AccessRejected,
@@ -627,7 +627,7 @@ func (h *Handler) Process(ctx context.Context, network net.Network, connection s
 		if err != nil {
 			return err
 		}
-		return r.NewMux(ctx, dispatcher.WrapLink(ctx, h.policyManager, h.stats, &transport.Link{Reader: clientReader, Writer: clientWriter}), h.observer)
+		return r.NewMux(ctx, dispatcher.WrapLink(ctx, core.PolicyForContext(ctx, h.policyManager), h.stats, &transport.Link{Reader: clientReader, Writer: clientWriter}), h.observer)
 	}
 
 	if err := dispatch.DispatchLink(

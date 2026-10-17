@@ -77,6 +77,9 @@ func dialgRPC(ctx context.Context, dest net.Destination, streamSettings *interne
 func getGrpcClient(ctx context.Context, dest net.Destination, streamSettings *internet.MemoryStreamConfig) (*grpc.ClientConn, error) {
 	globalDialerAccess.Lock()
 	defer globalDialerAccess.Unlock()
+	if streamSettings.IsClosed() {
+		return nil, errors.New("gRPC outbound has been retired")
+	}
 
 	if globalDialerMap == nil {
 		globalDialerMap = make(map[dialerConf]*grpc.ClientConn)
@@ -197,7 +200,22 @@ func getGrpcClient(ctx context.Context, dest net.Destination, streamSettings *in
 		setUserAgent(conn, userAgent)
 		conn.Connect()
 	}
-	globalDialerMap[dialerConf{dest, streamSettings}] = conn
+	if err != nil {
+		return nil, err
+	}
+	key := dialerConf{dest, streamSettings}
+	if !streamSettings.AddCloseHook(func() {
+		globalDialerAccess.Lock()
+		if globalDialerMap[key] == conn {
+			delete(globalDialerMap, key)
+		}
+		globalDialerAccess.Unlock()
+		_ = conn.Close()
+	}) {
+		_ = conn.Close()
+		return nil, errors.New("gRPC outbound has been retired")
+	}
+	globalDialerMap[key] = conn
 	return conn, err
 }
 
