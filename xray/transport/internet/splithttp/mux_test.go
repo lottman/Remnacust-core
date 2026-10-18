@@ -18,7 +18,7 @@ func TestMaxConnections(t *testing.T) {
 		MaxConnections: &RangeConfig{From: 4, To: 4},
 	}
 
-	xmuxManager := NewXmuxManager(xmuxConfig, func() XmuxConn {
+	xmuxManager := NewXmuxManager(&xmuxConfig, func() XmuxConn {
 		return &fakeRoundTripper{}
 	})
 
@@ -37,7 +37,7 @@ func TestCMaxReuseTimes(t *testing.T) {
 		CMaxReuseTimes: &RangeConfig{From: 2, To: 2},
 	}
 
-	xmuxManager := NewXmuxManager(xmuxConfig, func() XmuxConn {
+	xmuxManager := NewXmuxManager(&xmuxConfig, func() XmuxConn {
 		return &fakeRoundTripper{}
 	})
 
@@ -56,7 +56,7 @@ func TestMaxConcurrency(t *testing.T) {
 		MaxConcurrency: &RangeConfig{From: 2, To: 2},
 	}
 
-	xmuxManager := NewXmuxManager(xmuxConfig, func() XmuxConn {
+	xmuxManager := NewXmuxManager(&xmuxConfig, func() XmuxConn {
 		return &fakeRoundTripper{}
 	})
 
@@ -75,7 +75,7 @@ func TestMaxConcurrency(t *testing.T) {
 func TestDefault(t *testing.T) {
 	xmuxConfig := XmuxConfig{}
 
-	xmuxManager := NewXmuxManager(xmuxConfig, func() XmuxConn {
+	xmuxManager := NewXmuxManager(&xmuxConfig, func() XmuxConn {
 		return &fakeRoundTripper{}
 	})
 
@@ -88,5 +88,22 @@ func TestDefault(t *testing.T) {
 
 	if len(xmuxClients) != 1 {
 		t.Error("did not get 1 distinct clients, got ", len(xmuxClients))
+	}
+}
+
+func TestManagerOwnsConfigurationSnapshot(t *testing.T) {
+	config := &XmuxConfig{CMaxReuseTimes: &RangeConfig{From: 2, To: 2}}
+	manager := NewXmuxManager(config, func() XmuxConn { return &fakeRoundTripper{} })
+	config.CMaxReuseTimes.From = 100
+	config.CMaxReuseTimes.To = 100
+	clients := make(map[*XmuxClient]bool)
+	for i := 0; i < 8; i++ {
+		clients[manager.GetXmuxClient(context.Background())] = true
+	}
+	if len(clients) != 4 {
+		t.Fatalf("manager used a later caller configuration: got %d clients", len(clients))
+	}
+	if NewXmuxManager(nil, func() XmuxConn { return &fakeRoundTripper{} }).GetXmuxClient(context.Background()) == nil {
+		t.Fatal("nil configuration must use defaults")
 	}
 }

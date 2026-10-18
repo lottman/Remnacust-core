@@ -111,8 +111,8 @@ func TestProfileRetirementKeepsHTTP2StreamsAndDeniesRemovedCachedUser(t *testing
 	// The same client pool must use its existing physical HTTP/2 connection.
 	late := open(settings)
 	runtimePing(t, late, "A:", true)
-	freshSettings := *settings
-	fresh := open(&freshSettings)
+	freshSettings := &internet.MemoryStreamConfig{ProtocolName: "xera-http", ProtocolSettings: transportConfig, SecurityType: stream.SecurityType, SecuritySettings: security}
+	fresh := open(freshSettings)
 	runtimePing(t, fresh, "B:", true)
 	removed := newProfile.Configuration()
 	native, err := removed.Inbound[0].ProxySettings.GetInstance()

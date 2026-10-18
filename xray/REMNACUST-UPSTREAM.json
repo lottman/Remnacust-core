@@ -18,7 +18,7 @@
     "legacy TUN autoSystemDNS",
     "legacy XDNS name/type/settings.addr"
   ],
-  "version": "1.1.6",
+  "version": "1.1.7",
   "upstreamPatches": [],
   "checkedAt": "2026-10-16T12:03:57.499065+00:00",
   "pendingRelease": false,

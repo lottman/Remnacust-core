@@ -2,9 +2,9 @@
 
 Форк Xray-core для Remnacust. Обслуживает клиентские соединения, выполняет маршрутизацию и применяет политики хостов, тегов и устройств. Здесь также находятся исходники редактора и браузерной проверки конфигураций.
 
-Выпущена версия **1.1.6** на основе опубликованного официального тега **Xray v26.10.10**, коммит `701af60772cda123492f86e383e1fdba066614a9`. Авторы Xray пометили этот релиз как prerelease. Коммиты из `main` после тега исключены; политика дальнейших обновлений — только опубликованные официальные релизы. Наши XERA, политики устройств/хостов, квоты и применение поколений остаются расширениями форка. [Совместимость](docs/COMPATIBILITY.md). WASM, схемы и архив ноды подготовлены для [выпуска 1.2.59](https://github.com/lottman/Remnacust-installer/releases/tag/v1.2.59).
+Версия **1.1.7** на основе опубликованного официального тега **Xray v26.10.10**, коммит `701af60772cda123492f86e383e1fdba066614a9`. Авторы Xray пометили этот релиз как prerelease. Коммиты из `main` после тега исключены; политика дальнейших обновлений — только опубликованные официальные релизы. Наши XERA, политики устройств/хостов, квоты и применение поколений остаются расширениями форка. [Совместимость](docs/COMPATIBILITY.md). WASM, схемы и архив ноды подготовлены для [выпуска 1.2.60](https://github.com/lottman/Remnacust-installer/releases/tag/v1.2.60).
 
-**Версия 1.1.5** · **Основа: Xray-core 26.9.30** · [Панель](https://github.com/lottman/Remnacust-panel) · [Нода](https://github.com/lottman/Remnacust-node)
+**Версия 1.1.7** · **Основа: Xray-core v26.10.10** · [Панель](https://github.com/lottman/Remnacust-panel) · [Нода](https://github.com/lottman/Remnacust-node)
 
 Имя Go-модуля `github.com/xtls/xray-core` сохранено для совместимости импортов. Исходники зависимости olcRTC находятся в `vendor/olcrtc`; отдельная загрузка из файлового менеджера не нужна.
 
@@ -17,7 +17,7 @@ git clone https://github.com/lottman/Remnacust-core.git
 cd Remnacust-core/xray
 mkdir -p bin
 CGO_ENABLED=0 go build -trimpath \
-  -ldflags '-s -w -X github.com/xtls/xray-core/core.build=Remnacust-1.1.5' \
+  -ldflags '-s -w -X github.com/xtls/xray-core/core.build=Remnacust-1.1.7' \
   -o bin/xray ./main
 ./bin/xray version
 ```
