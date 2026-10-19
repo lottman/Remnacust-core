@@ -5,7 +5,7 @@
 Основа независимых графов профилей описана в [PROFILE-GRAPHS.md](PROFILE-GRAPHS.md).
 Это ещё не завершённая интеграция отдельных портов с панелью и нодой.
 
-Рабочие исходники Remnacust Core 1.1.7 основаны строго на опубликованном официальном теге Xray-core **v26.10.10** (`701af60772cda123492f86e383e1fdba066614a9`, официальный prerelease). Дополнительные коммиты из `main` не включаются. Баннер версии проверяется по этим же метаданным и не должен заявлять несуществующий набор дополнительных коммитов. Исправления восстановления приватных API включены в 1.1.7. Происхождение и политика обновлений: [REMNACUST-UPSTREAM.json](../xray/REMNACUST-UPSTREAM.json).
+Рабочие исходники Remnacust Core 1.1.8 основаны строго на опубликованном официальном теге Xray-core **v26.10.10** (`701af60772cda123492f86e383e1fdba066614a9`, официальный prerelease). Дополнительные коммиты из `main` не включаются. Баннер версии проверяется по этим же метаданным и не должен заявлять несуществующий набор дополнительных коммитов. Исправления восстановления приватных API включены в 1.1.7. Происхождение и политика обновлений: [REMNACUST-UPSTREAM.json](../xray/REMNACUST-UPSTREAM.json).
 
 В выбранном релизе XDNS использует TCP/UDP; наши прежние поля `type/settings.addr` и имя домена `name` сохраняются для совместимости. DoH, дополнительные `worker`/`tlsConfig`/`quicConfig` XDNS, новый лёгкий стек WireGuard/MASQUE и Noise Lua из последующих коммитов не входят в обновление. WireGuard/MASQUE используют реализацию выбранного официального релиза.
 
@@ -36,3 +36,7 @@ Enrollment changes the private journal version; it cannot be downgraded. Journal
 ### Journal watermarks (unreleased)
 
 `remnacust-quota-watermarks-v1` is the next private journal version. A server policy carries `quotaCheckpoint: { instance, sequence }`; canonical decimal `sequence` is checked against the durable journal and previously persisted checkpoint before mutation. Cold startup also validates the saved policy before public listeners. The checkpoint cannot be removed or lowered after enrollment. The isolated VLESS TCP fixture restores an old journal and verifies startup fails specifically because of its checkpoint, while normal live policy updates preserve the existing stream. Current offline restarts need no panel connection. Known-boundary checks do not reconstruct missing usage or prove simultaneous rollback of every copy without external retained state.
+
+## Служебные ответы API — 1.1.8
+
+Команды `xray api` выводят предупреждения конфигурации в stderr, а служебный ответ — в stdout. Предупреждение об устаревшем `freedom.domainStrategy` больше не ломает чтение JSON нодой при проверке, сохранении и применении профиля. Предупреждения не скрываются. Регрессионный тест запускает настоящие CLI-команды с такой конфигурацией, проверяет JSON, доставку предупреждения и сохранение старого соединения при live-apply. Обычный запуск Xray сохраняет свой прежний вывод логов.

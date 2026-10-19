@@ -139,7 +139,7 @@ func TestProfileCLIActualDispatchCacheLiveApplyAndLegacyGuard(t *testing.T) {
 		return map[string]any{
 			"log":       map[string]any{"loglevel": "none"},
 			"inbounds":  []any{map[string]any{"tag": "SAME", "listen": "127.0.0.1", "port": port, "protocol": "vless", "settings": map[string]any{"decryption": "none", "clients": []any{map[string]any{"id": "a4ac647a-075c-4b91-96e9-9fd341fba009", "email": "cli-user"}}}}},
-			"outbounds": []any{map[string]any{"tag": "direct", "protocol": "freedom", "settings": map[string]any{"redirect": fmt.Sprint("127.0.0.1:", destination), "finalRules": []any{map[string]any{"action": "allow", "ip": []string{"127.0.0.1/32"}}}}}},
+			"outbounds": []any{map[string]any{"tag": "direct", "protocol": "freedom", "settings": map[string]any{"domainStrategy": "UseIP", "redirect": fmt.Sprint("127.0.0.1:", destination), "finalRules": []any{map[string]any{"action": "allow", "ip": []string{"127.0.0.1/32"}}}}}},
 		}
 	}
 	root := map[string]any{"log": map[string]any{"loglevel": "none"}, "stats": map[string]any{}, "api": map[string]any{"tag": "CONTROL", "listen": fmt.Sprint("127.0.0.1:", apiPort), "services": []string{"HandlerService"}}, "outbounds": []any{map[string]any{"tag": "root", "protocol": "freedom"}}}
@@ -163,6 +163,9 @@ func TestProfileCLIActualDispatchCacheLiveApplyAndLegacyGuard(t *testing.T) {
 	var ack map[string]any
 	if err := json.Unmarshal(stdout, &ack); err != nil || ack["graphCount"] != float64(1) {
 		t.Fatal("cache acknowledgement is not machine-readable", string(stdout), err)
+	}
+	if !strings.Contains(string(stderr), "freedom.domainStrategy") {
+		t.Fatal("configuration warning was lost instead of being sent to stderr", string(stderr))
 	}
 	config, err := core.LoadRuntimeJournal(checkpoint)
 	if err != nil {
@@ -197,6 +200,9 @@ func TestProfileCLIActualDispatchCacheLiveApplyAndLegacyGuard(t *testing.T) {
 	}
 	if err := json.Unmarshal(stdout, &ack); err != nil || ack["graphCount"] != float64(1) || ack["unchanged"] != false {
 		t.Fatal("live acknowledgement changed", err)
+	}
+	if !strings.Contains(string(stderr), "freedom.domainStrategy") {
+		t.Fatal("live apply lost its configuration warning", string(stderr))
 	}
 	cliPing(t, old, "A:", false)
 	cliPing(t, cliClient(t, port, a), "B:", true)
