@@ -1,0 +1,84 @@
+name: Publish verified core binaries
+run-name: Core ${{ inputs.tag }}
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing version tag
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: core-binaries-${{ inputs.tag }}
+  cancel-in-progress: false
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    env:
+      TAG: ${{ inputs.tag }}
+      ARCH: ${{ matrix.arch }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.2'
+          cache-dependency-path: xray/go.sum
+      - name: Build and verify native binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(cat VERSION)
+          test "$TAG" = "v$version"
+          mkdir output
+          filename="remnacust-core-$version-linux-$ARCH"
+          (cd xray && CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X github.com/xtls/xray-core/core.build=Remnacust-$version" -o "../output/$filename" ./main)
+          python3 tests/version.test.py "$PWD/output/$filename"
+          printf '{"outbounds":[{"protocol":"freedom","tag":"direct"}]}' > output/check.json
+          "output/$filename" run -test -config output/check.json
+          rm output/check.json
+          (cd output && sha256sum "$filename" > "$filename.sha256")
+      - uses: actions/upload-artifact@v4
+        with:
+          name: core-${{ matrix.arch }}
+          path: output/
+          retention-days: 3
+  release:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ inputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: core-*
+          merge-multiple: true
+          path: output
+      - name: Verify checksums and publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(cat VERSION)
+          test "$TAG" = "v$version"
+          (cd output && cat *.sha256 > SHA256SUMS && sha256sum -c SHA256SUMS)
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo 'Release already exists; published binaries must not be replaced.' >&2
+            exit 1
+          fi
+          printf 'Проверенные Linux-бинарные файлы ядра %s для amd64 и arm64. Каждый файл собран из тега %s и проверен на своей архитектуре. SHA256SUMS содержит контрольные суммы.\n' "$version" "$TAG" > notes.md
+          gh release create "$TAG" --verify-tag --draft --title "$version" --notes-file notes.md
+          gh release upload "$TAG" "output/remnacust-core-$version-linux-amd64" "output/remnacust-core-$version-linux-arm64" output/SHA256SUMS
