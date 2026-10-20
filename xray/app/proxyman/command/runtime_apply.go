@@ -569,7 +569,11 @@ func (s *handlerServer) prepareRuntimeLocked(ctx context.Context, target *core.C
 			if !ok {
 				return nil, status.Error(codes.FailedPrecondition, "A service inbound cannot be changed through live ports")
 			}
-			if !proto.Equal(previous.ReceiverSettings, config.ReceiverSettings) {
+			sameReceiver, err := sameRuntimeReceiver(previous.ReceiverSettings, config.ReceiverSettings)
+			if err != nil {
+				return nil, status.Error(codes.InvalidArgument, "Invalid live receiver settings")
+			}
+			if !sameReceiver {
 				return nil, status.Errorf(codes.FailedPrecondition, "Inbound %s changes its port or transport; create a separate port/tag and retain this listener", config.Tag)
 			}
 			before, err := proxyWithoutUsers(previous.ProxySettings)
