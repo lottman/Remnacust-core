@@ -2,9 +2,9 @@
 
 Форк Xray-core для Remnacust. Обслуживает клиентские соединения, выполняет маршрутизацию и применяет политики хостов, тегов и устройств. Здесь также находятся исходники редактора и браузерной проверки конфигураций.
 
-Версия **1.1.7** на основе опубликованного официального тега **Xray v26.10.10**, коммит `701af60772cda123492f86e383e1fdba066614a9`. Авторы Xray пометили этот релиз как prerelease. Коммиты из `main` после тега исключены; политика дальнейших обновлений — только опубликованные официальные релизы. Наши XERA, политики устройств/хостов, квоты и применение поколений остаются расширениями форка. [Совместимость](docs/COMPATIBILITY.md). WASM, схемы и архив ноды подготовлены для [выпуска 1.2.61](https://github.com/lottman/Remnacust-installer/releases/tag/v1.2.61).
+Версия **1.1.9** на основе опубликованного официального тега **Xray v26.10.10**, коммит `701af60772cda123492f86e383e1fdba066614a9`. Авторы Xray пометили этот релиз как prerelease. Коммиты из `main` после тега исключены; политика дальнейших обновлений — только опубликованные официальные релизы. Наши XERA, политики устройств/хостов, квоты и применение поколений остаются расширениями форка. [Совместимость](docs/COMPATIBILITY.md). WASM, схемы и архив ноды синхронизированы с ядром 1.1.9 для [выпуска 1.2.68](https://github.com/lottman/Remnacust-installer/releases/tag/v1.2.68).
 
-**Версия 1.1.7** · **Основа: Xray-core v26.10.10** · [Панель](https://github.com/lottman/Remnacust-panel) · [Нода](https://github.com/lottman/Remnacust-node)
+**Версия 1.1.9** · **Основа: Xray-core v26.10.10** · [Панель](https://github.com/lottman/Remnacust-panel) · [Нода](https://github.com/lottman/Remnacust-node)
 
 Имя Go-модуля `github.com/xtls/xray-core` сохранено для совместимости импортов. Исходники зависимости olcRTC находятся в `vendor/olcrtc`; отдельная загрузка из файлового менеджера не нужна.
 
@@ -17,12 +17,14 @@ git clone https://github.com/lottman/Remnacust-core.git
 cd Remnacust-core/xray
 mkdir -p bin
 CGO_ENABLED=0 go build -trimpath \
-  -ldflags '-s -w -X github.com/xtls/xray-core/core.build=Remnacust-1.1.7' \
+  -ldflags '-s -w -X github.com/xtls/xray-core/core.build=Remnacust-1.1.9' \
   -o bin/xray ./main
 ./bin/xray version
 ```
 
 В Windows задайте `$env:CGO_ENABLED='0'` и укажите `bin/xray.exe`. При установке ноды [установщик](https://github.com/lottman/Remnacust-installer) скачивает готовый Docker-образ с агентом и ядром; сборки на сервере нет.
+
+Для отдельного обновления ядра из панели доступны [проверенные бинарники 1.1.9](https://github.com/lottman/Remnacust-core/releases/tag/v1.1.9) для Linux amd64 и arm64 с SHA256SUMS. Workflow `Publish verified core binaries` собирает существующий тег на нативных runner, проверяет версию и конфигурацию и создаёт черновик. После проверки и публикации обновите каталог панели через `panel/backend/scripts/sync-core-catalog.py` с тем же тегом и полным коммитом исходников. Опубликованные файлы не заменяются.
 
 ## Проверка и запуск
 

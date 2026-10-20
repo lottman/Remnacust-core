@@ -1,5 +1,5 @@
 name: Publish verified core binaries
-run-name: Core ${{ inputs.tag }}
+run-name: ${{ inputs.tag }}
 on:
   workflow_dispatch:
     inputs:
