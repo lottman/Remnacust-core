@@ -17,8 +17,8 @@ def conditional(protocol, config):
     return {'if': {'properties': {'protocol': {'const':protocol}}, 'required':['protocol']}, 'then': {'properties': {'settings':ref(config)}}}
 def mask_conditions(mapping):
     return [{'if': {'properties': {'type': {'const':kind}}, 'required':['type']}, 'then': {'properties': {'settings':ref(config)}}} for kind,config in mapping.items()]
-tcp={'header-custom':'HeaderCustomTCP','fragment':'FragmentMask','sudoku':'Sudoku','xmc':'XMC'}
-udp={'header-custom':'HeaderCustomUDP','mkcp-legacy':'MkcpLegacy','noise':'NoiseMask','salamander':'Salamander','sudoku':'Sudoku','xdns':'XDNS','xicmp':'Xicmp','realm':'Realm','udphop':'UDPHop'}
+tcp={'filter':'Filter','header-custom':'HeaderCustomTCP','fragment':'FragmentMask','sudoku':'Sudoku','xmc':'XMC'}
+udp={'filter':'Filter','header-custom':'HeaderCustomUDP','mkcp-legacy':'MkcpLegacy','noise':'NoiseMask','salamander':'Salamander','sudoku':'Sudoku','xdns':'XDNS','xicmp':'Xicmp','realm':'Realm','udphop':'UDPHop'}
 for language in ['', '.cn']:
     name='public/assets/xray.schema'+language+'.json'
     schema=json.loads((ROOT/name).read_text(encoding='utf-8-sig'))

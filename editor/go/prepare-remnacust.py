@@ -103,5 +103,17 @@ if s.count(anchor) != 1:
     raise RuntimeError('Filesystem asset resolver changed; review the WASM adaptation')
 s = s.replace('\n\t"path/filepath"', '\n\t"path/filepath"\n\t"runtime"')
 s = s.replace(anchor, anchor + '\tif runtime.GOOS == "js" {\n\t\treturn path, nil, nil\n\t}\n')
+open_anchor = '\tr, err := NewFileReader(path)\n\treturn r, info.Size(), err\n'
+if s.count(open_anchor) != 1:
+    raise RuntimeError('Streaming asset reader changed; review the WASM adaptation')
+s = s.replace(open_anchor, '''\tr, err := NewFileReader(path)
+\tif err != nil { return nil, 0, err }
+\tif runtime.GOOS == "js" {
+\t\tif sized, ok := r.(interface{ Size() int64 }); ok { return r, sized.Size(), nil }
+\t\tr.Close()
+\t\treturn nil, 0, errors.New("embedded asset size unavailable")
+\t}
+\treturn r, info.Size(), nil
+''')
 p.write_text(s, encoding='utf-8', newline='\n')
 print(target)

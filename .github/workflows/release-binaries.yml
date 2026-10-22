@@ -30,7 +30,7 @@ jobs:
           ref: ${{ inputs.tag }}
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.27.2'
+          go-version: '1.27.3'
           cache-dependency-path: xray/go.sum
       - name: Build and verify native binary
         shell: bash

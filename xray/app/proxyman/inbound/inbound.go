@@ -187,7 +187,7 @@ func NewHandler(ctx context.Context, config *core.InboundHandlerConfig) (inbound
 			Mark: streamSettings.SocketSettings.Mark,
 		})
 	}
-	if streamSettings != nil && (streamSettings.ProtocolName == "splithttp" || streamSettings.ProtocolName == "xera-http") {
+	if streamSettings != nil && (streamSettings.ProtocolName == "splithttp" || streamSettings.ProtocolName == "masque" || streamSettings.ProtocolName == "xera-http") {
 		ctx = session.ContextWithAllowedNetwork(ctx, net.Network_UDP)
 	}
 

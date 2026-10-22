@@ -515,6 +515,24 @@
     "properties": {},
     "type": "object"
   },
+  "RemnacustCoreFilter": {
+    "additionalProperties": true,
+    "properties": {
+      "allowedSourceIPs": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "blockedSourceIPs": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      }
+    },
+    "type": "object"
+  },
   "RemnacustCoreFinalMask": {
     "additionalProperties": true,
     "properties": {
@@ -1220,6 +1238,9 @@
       },
       "warp": {
         "$ref": "#/definitions/RemnacustCoreMasqueWarpConfig"
+      },
+      "xmux": {
+        "$ref": "#/definitions/RemnacustCoreXmuxConfig"
       }
     },
     "type": "object"
@@ -1529,6 +1550,9 @@
           "integer",
           "string"
         ]
+      },
+      "script": {
+        "type": "string"
       }
     },
     "type": "object"
@@ -3526,6 +3550,9 @@
         },
         "type": "array"
       },
+      "quicConfig": {
+        "$ref": "#/definitions/RemnacustCoreQuicParamsConfig"
+      },
       "settings": {
         "additionalProperties": true,
         "properties": {
@@ -3535,8 +3562,14 @@
         },
         "type": "object"
       },
+      "tlsConfig": {
+        "$ref": "#/definitions/RemnacustCoreTLSConfig"
+      },
       "type": {
         "type": "string"
+      },
+      "worker": {
+        "type": "integer"
       }
     },
     "type": "object"
@@ -3580,7 +3613,10 @@
       "sessionTtlSeconds": {
         "type": "integer"
       },
-      "template": {}
+      "template": {},
+      "xmux": {
+        "$ref": "#/definitions/RemnacustCoreXmuxConfig"
+      }
     },
     "type": "object"
   },

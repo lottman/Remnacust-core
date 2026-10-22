@@ -25,14 +25,19 @@ var geoipRaw []byte
 //go:embed assets/geosite.dat
 var geositeRaw []byte
 
+// The native geodata scanner needs the file size before streaming its entries.
+type embeddedAsset struct{ *bytes.Reader }
+
+func (*embeddedAsset) Close() error { return nil }
+
 func main() {
 	filesystem.NewFileReader = func(path string) (io.ReadCloser, error) {
 		if strings.HasSuffix(path, "geoip.dat") {
-			return io.NopCloser(bytes.NewReader(geoipRaw)), nil
+			return &embeddedAsset{bytes.NewReader(geoipRaw)}, nil
 		}
 
 		if strings.HasSuffix(path, "geosite.dat") {
-			return io.NopCloser(bytes.NewReader(geositeRaw)), nil
+			return &embeddedAsset{bytes.NewReader(geositeRaw)}, nil
 		}
 
 		return nil, errors.New(path + " cannot be opened in the browser")

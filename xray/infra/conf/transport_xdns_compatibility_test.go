@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/xtls/xray-core/transport/internet/finalmask/xdns"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -42,12 +43,17 @@ func TestXDNSLegacyConfiguration(t *testing.T) {
 	}
 }
 
-func TestXDNSPublishedReleaseRejectsDoH(t *testing.T) {
+func TestXDNSPublishedReleasePreservesDoHOptions(t *testing.T) {
 	var config XDNS
 	if err := json.Unmarshal([]byte(`{"resolvers":[{"addrs":["https://resolver.invalid/dns-query?mode=wire"],"worker":4,"tlsConfig":{"serverName":"front.invalid","alpn":["h3"]},"quicConfig":{"congestion":"bbr","bbrProfile":"aggressive"}},{"type":"udp","settings":{"addr":"127.0.0.1:5353"}}]}`), &config); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := config.Build(); err == nil {
-		t.Fatal("XDNS DoH belongs to an unpublished upstream commit, not the selected release")
+	built, err := config.Build()
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolvers := built.(*xdns.Config).Resolvers
+	if len(resolvers) != 2 || resolvers[0].Type != "https" || resolvers[0].Worker != 4 || resolvers[0].TlsConfig.ServerName != "front.invalid" || resolvers[0].QuicConfig.BbrProfile != "aggressive" || resolvers[1].Type != "udp" {
+		t.Fatalf("published DoH options or legacy UDP resolver lost: %v", resolvers)
 	}
 }

@@ -1,6 +1,6 @@
 # Сборка ядра и редактора
 
-Нужен Go 1.27.2. Из каталога `xray`:
+Нужен Go 1.27.3. Из каталога `xray`:
 
 ```bash
 go test ./infra/conf ./transport/internet/xerahttp ./app/dispatcher ./app/proxyman/command ./app/commander

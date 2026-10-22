@@ -36,16 +36,15 @@ The -confdir=dir flag sets a dir with multiple json config
 The -format=json flag sets the format of config files.
 Default "auto".
 
-The config root env object sets process environment variables after all config
-files are parsed. Variables needed to locate or parse config files must be set
-in the process environment before Xray starts.
-
 The -test flag tells Xray to test config files only,
 without launching the server.
 
 The -dump flag tells Xray to print the merged config.
 	`,
 }
+
+// The --lua-privileged-pubkey=key flag sets the trusted Ed25519 public key
+// for privileged local Lua scripts, encoded as unpadded Base64URL.
 
 func init() {
 	cmdRun.Run = executeRun // break init loop
@@ -215,6 +214,11 @@ func getConfigFormat() string {
 }
 
 func startXray() (core.Server, error) {
+	// TODO: Restore public key initialization when Lua privileged signature authorization is re-enabled.
+	// if err := lua.SetPrivilegedPublicKey(*luaPrivilegedPublicKey); err != nil {
+	// 	return nil, errors.New("failed to configure Lua privileged authorization").Base(err)
+	// }
+
 	configFiles := getConfigFilePath(true)
 	var c *core.Config
 	var err error

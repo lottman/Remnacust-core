@@ -6,7 +6,7 @@ import (
 )
 
 func TestRetiredClientCannotReconnect(t *testing.T) {
-	c := &client{}
+	c := &client{lock: make(chan struct{}, 1)}
 	c.clean(true)
 	if _, err := c.tcp(context.Background()); err == nil {
 		t.Fatal("retired TCP client attempted a new dial")

@@ -1,10 +1,10 @@
 {
   "project": "Remnacust Xray",
   "upstreamRepository": "https://github.com/XTLS/Xray-core",
-  "upstreamVersion": "v26.10.10",
-  "upstreamCommit": "701af60772cda123492f86e383e1fdba066614a9",
-  "previousUpstreamVersion": "v26.9.30",
-  "previousUpstreamCommit": "b26a91de4f3294e26a0ad0a970b81a386a41f789",
+  "upstreamVersion": "v26.10.21",
+  "upstreamCommit": "1b1647cd9ddf0abc34b981d4611fc03bcac1ca74",
+  "previousUpstreamVersion": "v26.10.10",
+  "previousUpstreamCommit": "701af60772cda123492f86e383e1fdba066614a9",
   "upstreamPrerelease": true,
   "customCapabilities": [
     "XERA-HTTP",
@@ -19,11 +19,11 @@
     "legacy TUN autoSystemDNS",
     "legacy XDNS name/type/settings.addr"
   ],
-  "version": "1.1.10",
+  "version": "1.1.11",
   "upstreamPatches": [],
-  "checkedAt": "2026-10-16T12:03:57.499065+00:00",
+  "checkedAt": "2026-10-22T08:00:00Z",
   "pendingRelease": false,
-  "upstreamRef": "refs/tags/v26.10.10",
+  "upstreamRef": "refs/tags/v26.10.21",
   "updatePolicy": "published-official-releases-only",
   "dependencySecurityUpdates": [
     {
@@ -38,6 +38,12 @@
         "GO-2026-6610",
         "GO-2026-6603"
       ]
+    },
+    {
+      "module": "golang.org/x/crypto/x509roots/fallback",
+      "version": "v0.0.0-20261020153306-9f2b28d4331a",
+      "source": "https://github.com/XTLS/Xray-core/releases/tag/v26.10.21",
+      "toolchain": "go1.27.3"
     }
   ]
 }

@@ -36,7 +36,6 @@ type DNS struct {
 	matcherInfos           []*DomainMatcherInfo
 	checkSystem            bool
 	script                 *scriptEngine
-	scriptPath             string
 }
 
 // DomainMatcherInfo contains information attached to index returned by Server.domainMatcher.
@@ -175,6 +174,13 @@ func New(ctx context.Context, config *Config) (*DNS, error) {
 		clients = append(clients, NewLocalDNSClient(ipOption))
 	}
 
+	var script *scriptEngine
+	if config.Script != "" {
+		if script, err = newScriptEngine(config.Script); err != nil {
+			return nil, errors.New("failed to prepare DNS script").Base(err)
+		}
+	}
+
 	return &DNS{
 		hosts:                  hosts,
 		ipOption:               &ipOption,
@@ -186,7 +192,7 @@ func New(ctx context.Context, config *Config) (*DNS, error) {
 		disableFallbackIfMatch: config.DisableFallbackIfMatch,
 		enableParallelQuery:    config.EnableParallelQuery,
 		checkSystem:            checkSystem,
-		scriptPath:             config.Script,
+		script:                 script,
 	}, nil
 }
 
@@ -200,12 +206,10 @@ func (s *DNS) Start() error {
 	if s.closed.Load() {
 		return context.Canceled
 	}
-	if s.scriptPath != "" {
-		engine, err := newScriptEngine(s.scriptPath, s)
-		if err != nil {
+	if s.script != nil {
+		if err := s.script.start(s); err != nil {
 			return errors.New("failed to initialize DNS script").Base(err)
 		}
-		s.script = engine
 	}
 	return nil
 }

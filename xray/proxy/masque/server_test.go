@@ -416,7 +416,7 @@ func TestServerTunnelUsesAdmittedGraphInsteadOfOriginalListenerGraph(t *testing.
 		dispatcher: old,
 		tunnels:    map[netip.Addr]*serverTunnel{netip.MustParseAddr("10.13.0.2"): tunnel},
 	}
-	s.handleConnection(conn, net.TCPDestination(net.ParseAddress("192.0.2.1"), 443))
+	s.HandleConnection(conn, net.TCPDestination(net.ParseAddress("192.0.2.1"), 443))
 	if old.seen != nil || admitted.seen == nil || admitted.seen.Value(ownerKey{}) != "admitted" {
 		t.Fatal("MASQUE IP flow escaped the graph that admitted its tunnel")
 	}
@@ -447,7 +447,7 @@ func TestServerKeepsConnectionOpenWhenWriterCloses(t *testing.T) {
 		dispatcher: dispatcher,
 		tunnels:    map[netip.Addr]*serverTunnel{netip.MustParseAddr("10.13.0.2"): newServerTunnel(context.Background(), nil, &protocol.MemoryUser{}, dispatcher)},
 	}
-	s.handleConnection(conn, net.TCPDestination(net.ParseAddress("192.0.2.1"), 443))
+	s.HandleConnection(conn, net.TCPDestination(net.ParseAddress("192.0.2.1"), 443))
 
 	if dispatcher.closed != 0 {
 		t.Fatal("the connection was closed with its writer, while the client may still be sending")
