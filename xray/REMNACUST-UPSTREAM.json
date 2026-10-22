@@ -11,14 +11,15 @@
     "xera-host-policy-v2",
     "xera-destination-rules-v1",
     "authenticated device connection revocation",
-    "standalone olcRTC core support"
+    "standalone olcRTC core support",
+    "remnacust-device-speed-v1"
   ],
   "compatibility": [
     "legacy finalmask.quicParams.udpHop",
     "legacy TUN autoSystemDNS",
     "legacy XDNS name/type/settings.addr"
   ],
-  "version": "1.1.9",
+  "version": "1.1.10",
   "upstreamPatches": [],
   "checkedAt": "2026-10-16T12:03:57.499065+00:00",
   "pendingRelease": false,

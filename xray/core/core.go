@@ -20,13 +20,13 @@ import (
 var (
 	Version_x byte = 1
 	Version_y byte = 1
-	Version_z byte = 9
+	Version_z byte = 10
 )
 
 var (
 	build    = "Custom"
 	codename = "Xray, Penetrates Everything."
-	intro    = "Remnacust Core 1.1.9. Based on Xray-core v26.10.10."
+	intro    = "Remnacust Core 1.1.10. Based on Xray-core v26.10.10."
 )
 
 func init() {

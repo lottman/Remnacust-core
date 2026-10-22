@@ -29,6 +29,7 @@ import (
 
 const hostPolicyCapability = "xera-host-policy-v2"
 const destinationRulesCapability = "xera-destination-rules-v1"
+const deviceSpeedCapability = "remnacust-device-speed-v1"
 const legacyHostPolicyCapability = "xera-host-policy-v1"
 const hostPolicyPath = "/var/lib/remnanode/host-policy.json"
 const policyBurst = 65536 // supports a complete UDP datagram; shared across all connections
@@ -66,21 +67,23 @@ type hostAccessPolicy struct {
 	destinations      *hostDestinations
 }
 type hostLimitPolicy struct {
-	UnreservedAccounts  map[string]string     `json:"unreservedAccounts,omitempty"`
-	MultiplierScale     int64                 `json:"multiplierScale,omitempty"`
-	FenceAll            bool                  `json:"fenceAll,omitempty"`
-	FencedOwners        map[string]bool       `json:"fencedOwners,omitempty"`
-	ReserveRequired     bool                  `json:"reserveRequired,omitempty"`
-	Reserves            map[string]quotaGrant `json:"reserves,omitempty"`
-	UnlimitedOwners     map[string]bool       `json:"unlimitedOwners,omitempty"`
-	BytesPerSecond      int64                 `json:"bytesPerSecond"`
-	TotalBytesPerSecond int64                 `json:"totalBytesPerSecond"`
-	BlockAll            bool                  `json:"blockAll"`
-	BlockedOwners       map[string]bool       `json:"blockedOwners"`
+	UnreservedAccounts   map[string]string     `json:"unreservedAccounts,omitempty"`
+	MultiplierScale      int64                 `json:"multiplierScale,omitempty"`
+	FenceAll             bool                  `json:"fenceAll,omitempty"`
+	FencedOwners         map[string]bool       `json:"fencedOwners,omitempty"`
+	ReserveRequired      bool                  `json:"reserveRequired,omitempty"`
+	Reserves             map[string]quotaGrant `json:"reserves,omitempty"`
+	UnlimitedOwners      map[string]bool       `json:"unlimitedOwners,omitempty"`
+	BytesPerSecond       int64                 `json:"bytesPerSecond"`
+	DeviceBytesPerSecond int64                 `json:"deviceBytesPerSecond,omitempty"`
+	TotalBytesPerSecond  int64                 `json:"totalBytesPerSecond"`
+	BlockAll             bool                  `json:"blockAll"`
+	BlockedOwners        map[string]bool       `json:"blockedOwners"`
 }
 
 type hostBucket struct {
 	limiter  *rate.Limiter
+	fair     *fairSpeedLimiter
 	lastUsed time.Time
 }
 
@@ -361,7 +364,7 @@ func loadHostPolicy() {
 	changed := publishHostPolicy(next)
 	hostPolicies.Lock()
 	for key, bucket := range hostPolicies.buckets {
-		if time.Since(bucket.lastUsed) > 10*time.Minute {
+		if time.Since(bucket.lastUsed) > 10*time.Minute && (bucket.fair == nil || bucket.fair.idle()) {
 			delete(hostPolicies.buckets, key)
 		}
 	}
@@ -373,7 +376,7 @@ func loadHostPolicy() {
 	}
 	hostPolicies.Unlock()
 	if changed {
-		status, _ := json.Marshal(map[string]any{"version": hostPolicyCapability, "destinationRules": destinationRulesCapability, "generation": next.Generation, "pid": os.Getpid(), "quotaReserves": quotaReserveCapability, "quotaRegistrations": quotaRegistrationCapability, "quotaWatermarks": quotaWatermarkCapability, "quotaFences": quotaFenceCapability, "coreIncarnation": coreIncarnationCapability, "coreProcessId": coreIncarnation, "userQuotaReserves": userQuotaCapability, "unreservedUsage": quotausage.Capability})
+		status, _ := json.Marshal(map[string]any{"version": hostPolicyCapability, "destinationRules": destinationRulesCapability, "deviceSpeedLimits": deviceSpeedCapability, "generation": next.Generation, "pid": os.Getpid(), "quotaReserves": quotaReserveCapability, "quotaRegistrations": quotaRegistrationCapability, "quotaWatermarks": quotaWatermarkCapability, "quotaFences": quotaFenceCapability, "coreIncarnation": coreIncarnationCapability, "coreProcessId": coreIncarnation, "userQuotaReserves": userQuotaCapability, "unreservedUsage": quotausage.Capability})
 		tmp := hostPolicyPath + ".status.tmp"
 		if os.WriteFile(tmp, status, 0600) == nil {
 			_ = os.Rename(tmp, filepath.Join(filepath.Dir(hostPolicyPath), "host-policy.status.json"))
@@ -613,7 +616,7 @@ func admitHostPolicy(ctx context.Context, email, direction string, size int, acc
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
-	buckets := make([]*rate.Limiter, 0, len(keys)*2)
+	buckets := make([]*hostBucket, 0, len(keys)*3)
 	for _, key := range keys {
 		group := groups[key]
 		if group.BlockAll || group.BlockedOwners[owner] {
@@ -623,7 +626,7 @@ func admitHostPolicy(ctx context.Context, email, direction string, size int, acc
 		for _, limit := range []struct {
 			scope string
 			speed int64
-		}{{owner, group.BytesPerSecond}, {"all", group.TotalBytesPerSecond}} {
+		}{{"device:" + email, group.DeviceBytesPerSecond}, {owner, group.BytesPerSecond}, {"all", group.TotalBytesPerSecond}} {
 			if limit.speed <= 0 {
 				continue
 			}
@@ -632,12 +635,13 @@ func admitHostPolicy(ctx context.Context, email, direction string, size int, acc
 			bucket := hostPolicies.buckets[bucketKey]
 			if bucket == nil {
 				bucket = &hostBucket{limiter: rate.NewLimiter(rate.Limit(limit.speed), policyBurst)}
+				bucket.fair = newFairSpeedLimiter(bucket.limiter)
 				hostPolicies.buckets[bucketKey] = bucket
 			} else if bucket.limiter.Limit() != rate.Limit(limit.speed) {
 				bucket.limiter.SetLimit(rate.Limit(limit.speed))
 			}
 			bucket.lastUsed = time.Now()
-			buckets = append(buckets, bucket.limiter)
+			buckets = append(buckets, bucket)
 		}
 	}
 	if hostAdmissionFenced(email, groups) {
@@ -653,7 +657,7 @@ func admitHostPolicy(ctx context.Context, email, direction string, size int, acc
 				deadline = time.Now().Add(24 * time.Hour)
 			}
 			waitCtx, cancel := context.WithDeadline(ctx, deadline)
-			err := bucket.WaitN(waitCtx, n)
+			err := bucket.fair.wait(waitCtx, owner, email, n)
 			cancel()
 			if err != nil {
 				return err
@@ -678,7 +682,7 @@ func admitHostPolicy(ctx context.Context, email, direction string, size int, acc
 			if group.BlockAll || group.BlockedOwners[owner] {
 				return errors.New("host quota denied traffic")
 			}
-			if previous, exists := groups[key]; !exists || (group.BytesPerSecond > 0 && (previous.BytesPerSecond == 0 || group.BytesPerSecond < previous.BytesPerSecond)) || (group.TotalBytesPerSecond > 0 && (previous.TotalBytesPerSecond == 0 || group.TotalBytesPerSecond < previous.TotalBytesPerSecond)) {
+			if previous, exists := groups[key]; !exists || (group.BytesPerSecond > 0 && (previous.BytesPerSecond == 0 || group.BytesPerSecond < previous.BytesPerSecond)) || (group.DeviceBytesPerSecond > 0 && (previous.DeviceBytesPerSecond == 0 || group.DeviceBytesPerSecond < previous.DeviceBytesPerSecond)) || (group.TotalBytesPerSecond > 0 && (previous.TotalBytesPerSecond == 0 || group.TotalBytesPerSecond < previous.TotalBytesPerSecond)) {
 				return errors.New("host policy changed; reconnect")
 			}
 		}
