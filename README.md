@@ -6,7 +6,7 @@
 
 **[Core 1.1.12](https://github.com/lottman/Remnacust-core/releases/tag/v1.1.12)** основан на опубликованном стабильном **Xray v26.10.31**, коммит `a4a3dff5b20c2faae567b742c172c7b95e75c083`. Происхождение и совместимые расширения записаны в [REMNACUST-UPSTREAM.json](xray/REMNACUST-UPSTREAM.json).
 
-Согласованный комплект: [Node 1.1.20](https://github.com/lottman/Remnacust-node/releases/tag/v1.1.20), [панель/страница 1.1.7.85](https://github.com/lottman/Remnacust-panel/releases/tag/v1.1.7.85), [установщик 1.2.121](https://github.com/lottman/Remnacust-installer/releases/tag/v1.2.121). Версии компонентов нумеруются отдельно.
+Согласованный комплект: [Node 1.1.20](https://github.com/lottman/Remnacust-node/releases/tag/v1.1.20), [панель/страница 1.1.7.86](https://github.com/lottman/Remnacust-panel/releases/tag/v1.1.7.86), [установщик 1.2.122](https://github.com/lottman/Remnacust-installer/releases/tag/v1.2.122). Версии компонентов нумеруются отдельно.
 
 В основе используются опубликованные официальные теги Xray, без произвольного переноса последующего `main`. В 26.10.31 MPTCP выключен по умолчанию; обновление приложения не заменяет обновление ядра Linux. Наш исходящий XDRIVE сохраняет прежнее сегментное объявление для совместимости со старыми серверами; новые режимы не включаются автоматически. [Изменения Core 1.1.12](docs/RELEASE-1.1.12.md).
 
