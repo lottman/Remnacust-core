@@ -2475,6 +2475,7 @@
         "$ref": "#/definitions/RemnacustCoreStreamConfig"
       },
       "extra": {},
+      "h2Params": {},
       "headers": {
         "additionalProperties": {
           "type": "string"
@@ -3598,6 +3599,9 @@
       "remoteFolder": {
         "type": "string"
       },
+      "s3": {
+        "$ref": "#/definitions/RemnacustCoreXDriveS3Config"
+      },
       "secrets": {
         "items": {
           "type": "string"
@@ -3616,6 +3620,24 @@
       "template": {},
       "xmux": {
         "$ref": "#/definitions/RemnacustCoreXmuxConfig"
+      }
+    },
+    "type": "object"
+  },
+  "RemnacustCoreXDriveS3Config": {
+    "additionalProperties": true,
+    "properties": {
+      "bucket": {
+        "type": "string"
+      },
+      "endpoint": {
+        "type": "string"
+      },
+      "pathStyle": {
+        "type": "boolean"
+      },
+      "region": {
+        "type": "string"
       }
     },
     "type": "object"

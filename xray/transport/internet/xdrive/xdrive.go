@@ -95,15 +95,18 @@ func Dial(ctx context.Context, dest net.Destination, streamSettings *internet.Me
 		return nil, err
 	}
 
+	p := paramsFromConfig(config)
+	// Older peers interpret an announcement as a segment session and cannot
+	// negotiate ring slots. Retain that wire format for outbound connections;
+	// the listener can still accept either format from newer clients.
 	if err := storage.Put(ctx, announceName(session, time.Now()), nil); err != nil {
 		storage.Close()
 		return nil, errors.New("failed to announce session ", session).Base(err)
 	}
 
 	errors.LogInfo(ctx, "opened session ", session)
-
 	return newConn(context.Background(), storage,
-		uplinkPrefix(session), downlinkPrefix(session), paramsFromConfig(config), func() {
+		uplinkPrefix(session), downlinkPrefix(session), p, func() {
 			storage.Close()
 		}), nil
 }
@@ -206,9 +209,8 @@ func (l *Listener) acceptPending(logCtx context.Context) (bool, error) {
 			continue
 		}
 		go l.drop(full)
-		errors.LogInfo(logCtx, "accepted session ", session)
 		accepted = true
-		l.addConn(l.newSessionConn(session))
+		l.addConn(l.newSessionConn(logCtx, session, listed.Inline))
 	}
 	return accepted, nil
 }
@@ -228,15 +230,24 @@ func (l *Listener) claim(session string) bool {
 	return true
 }
 
-func (l *Listener) newSessionConn(session string) *Conn {
+// newSessionConn takes a session in the slots that its announcement has, or
+// in segments if it has none
+func (l *Listener) newSessionConn(logCtx context.Context, session string, announce []byte) *Conn {
 	storage := sessionStorage(l.storage)
-	return newConn(l.ctx, storage,
-		downlinkPrefix(session), uplinkPrefix(session), l.params, func() {
-			storage.Close()
-			l.mu.Lock()
-			delete(l.active, session)
-			l.mu.Unlock()
-		})
+	onClose := func() {
+		storage.Close()
+		l.mu.Lock()
+		delete(l.active, session)
+		l.mu.Unlock()
+	}
+	if slots, ok := storage.(slotStore); ok {
+		if r, ok := decodeRing(announce); ok {
+			errors.LogInfo(logCtx, "accepted session ", session, " in ", len(r.Down.Slots), " slots")
+			return newSlotConn(l.ctx, slots, r.Down, r.Up, l.params, onClose)
+		}
+	}
+	errors.LogInfo(logCtx, "accepted session ", session)
+	return newConn(l.ctx, storage, downlinkPrefix(session), uplinkPrefix(session), l.params, onClose)
 }
 
 func (l *Listener) collectLoop(logCtx context.Context) {

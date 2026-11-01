@@ -64,6 +64,7 @@ jobs:
             go test -race -count=1 -timeout=90s -run '^TestRuntimeRegisteredQuotaIsolated$' -v ./app/proxyman/command
       - run: CGO_ENABLED=0 go build -trimpath -o /tmp/remnacust-xray ./main
       - run: python3 ../tests/version.test.py /tmp/remnacust-xray
+      - run: python3 ../tests/geoip-routing.integration.py /tmp/remnacust-xray
       - run: python3 ../tests/device-revoke.integration.py /tmp/remnacust-xray
       - run: go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
       - run: govulncheck ./...

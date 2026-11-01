@@ -1,11 +1,11 @@
 {
   "project": "Remnacust Xray",
   "upstreamRepository": "https://github.com/XTLS/Xray-core",
-  "upstreamVersion": "v26.10.21",
-  "upstreamCommit": "1b1647cd9ddf0abc34b981d4611fc03bcac1ca74",
-  "previousUpstreamVersion": "v26.10.10",
-  "previousUpstreamCommit": "701af60772cda123492f86e383e1fdba066614a9",
-  "upstreamPrerelease": true,
+  "upstreamVersion": "v26.10.31",
+  "upstreamCommit": "a4a3dff5b20c2faae567b742c172c7b95e75c083",
+  "previousUpstreamVersion": "v26.10.21",
+  "previousUpstreamCommit": "1b1647cd9ddf0abc34b981d4611fc03bcac1ca74",
+  "upstreamPrerelease": false,
   "customCapabilities": [
     "XERA-HTTP",
     "xera-host-policy-v2",
@@ -17,13 +17,14 @@
   "compatibility": [
     "legacy finalmask.quicParams.udpHop",
     "legacy TUN autoSystemDNS",
-    "legacy XDNS name/type/settings.addr"
+    "legacy XDNS name/type/settings.addr",
+    "legacy XDRIVE outbound segment announcements"
   ],
-  "version": "1.1.11",
+  "version": "1.1.12",
   "upstreamPatches": [],
-  "checkedAt": "2026-10-22T08:00:00Z",
+  "checkedAt": "2026-11-01T18:12:46.390111+00:00",
   "pendingRelease": false,
-  "upstreamRef": "refs/tags/v26.10.21",
+  "upstreamRef": "refs/tags/v26.10.31",
   "updatePolicy": "published-official-releases-only",
   "dependencySecurityUpdates": [
     {
