@@ -240,6 +240,29 @@ func TestHostPolicyV2IsolationOnSameInbound(t *testing.T) {
 	}
 }
 
+func TestHostPolicyRouteEnforcesRecipientWithoutRevokingUnrestrictedDirectAccess(t *testing.T) {
+	doc := v2Policy()
+	doc.ProtectedInbounds = nil
+	doc.Groups["a"] = hostLimitPolicy{BlockedOwners: map[string]bool{"1": true}}
+	testHostPolicy(t, doc)
+	ctx := policyContext("shared")
+	if err := waitHostPolicy(ctx, "1", "up", 1); err != nil {
+		t.Fatal("a route revoked pre-existing unrestricted direct access:", err)
+	}
+	if err := waitHostPolicy(ctx, hostEmail("1", hostA), "up", 1); err == nil {
+		t.Fatal("an unprotected listener bypassed the route recipient quota")
+	}
+	if err := waitHostPolicy(ctx, hostEmail("1", hostB), "up", 1); err != nil {
+		t.Fatal("another recipient inherited an unrelated quota:", err)
+	}
+	if err := waitHostPolicy(ctx, hostEmail("1", strings.Repeat("3", 32)), "up", 1); err == nil {
+		t.Fatal("an unregistered route identity was accepted")
+	}
+	if err := waitHostPolicy(policyContext("other"), hostEmail("1", hostB), "up", 1); err == nil {
+		t.Fatal("an identity crossed its inbound binding")
+	}
+}
+
 func TestHostPolicyV2TagUserSpeedIsIndependentPerHost(t *testing.T) {
 	doc := v2Policy()
 	doc.Groups["a"] = hostLimitPolicy{BytesPerSecond: policyBurst}

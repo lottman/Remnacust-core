@@ -30,11 +30,13 @@ import (
 const hostPolicyCapability = "xera-host-policy-v2"
 const destinationRulesCapability = "xera-destination-rules-v1"
 const deviceSpeedCapability = "remnacust-device-speed-v1"
+const routedDeviceSpeedCapability = "remnacust-routed-device-speed-v1"
 const legacyHostPolicyCapability = "xera-host-policy-v1"
 const hostPolicyPath = "/var/lib/remnanode/host-policy.json"
 const policyBurst = 65536 // supports a complete UDP datagram; shared across all connections
 
 type hostPolicyDocument struct {
+	RoutedIdentities       bool                         `json:"routedIdentities,omitempty"`
 	Version                string                       `json:"version"`
 	Generation             string                       `json:"generation"`
 	OfflineReserves        string                       `json:"offlineReserves,omitempty"`
@@ -292,6 +294,13 @@ func hostPolicyIdentity(email string) (string, string) {
 }
 func hostPolicyOwner(email string) string { owner, _ := hostPolicyIdentity(email); return owner }
 
+func hostPolicyDevice(email string) string {
+	if _, host := hostPolicyIdentity(email); host != "" {
+		return email[:strings.LastIndex(email, "~h")]
+	}
+	return email
+}
+
 var hostPolicyStart sync.Once
 var hostPolicyStartError error
 
@@ -376,7 +385,7 @@ func loadHostPolicy() {
 	}
 	hostPolicies.Unlock()
 	if changed {
-		status, _ := json.Marshal(map[string]any{"version": hostPolicyCapability, "destinationRules": destinationRulesCapability, "deviceSpeedLimits": deviceSpeedCapability, "generation": next.Generation, "pid": os.Getpid(), "quotaReserves": quotaReserveCapability, "quotaRegistrations": quotaRegistrationCapability, "quotaWatermarks": quotaWatermarkCapability, "quotaFences": quotaFenceCapability, "coreIncarnation": coreIncarnationCapability, "coreProcessId": coreIncarnation, "userQuotaReserves": userQuotaCapability, "unreservedUsage": quotausage.Capability})
+		status, _ := json.Marshal(map[string]any{"version": hostPolicyCapability, "destinationRules": destinationRulesCapability, "deviceSpeedLimits": deviceSpeedCapability, "routedDeviceSpeedLimits": routedDeviceSpeedCapability, "generation": next.Generation, "pid": os.Getpid(), "quotaReserves": quotaReserveCapability, "quotaRegistrations": quotaRegistrationCapability, "quotaWatermarks": quotaWatermarkCapability, "quotaFences": quotaFenceCapability, "coreIncarnation": coreIncarnationCapability, "coreProcessId": coreIncarnation, "userQuotaReserves": userQuotaCapability, "unreservedUsage": quotausage.Capability})
 		tmp := hostPolicyPath + ".status.tmp"
 		if os.WriteFile(tmp, status, 0600) == nil {
 			_ = os.Rename(tmp, filepath.Join(filepath.Dir(hostPolicyPath), "host-policy.status.json"))
@@ -603,6 +612,7 @@ func admitHostPolicy(ctx context.Context, email, direction string, size int, acc
 		return err
 	}
 	owner, quotaHost := hostPolicyIdentity(email)
+	device := hostPolicyDevice(email)
 	chargeSize := size
 	hostPolicies.Lock()
 	policy := hostPolicies.document
@@ -626,7 +636,7 @@ func admitHostPolicy(ctx context.Context, email, direction string, size int, acc
 		for _, limit := range []struct {
 			scope string
 			speed int64
-		}{{"device:" + email, group.DeviceBytesPerSecond}, {owner, group.BytesPerSecond}, {"all", group.TotalBytesPerSecond}} {
+		}{{"device:" + device, group.DeviceBytesPerSecond}, {owner, group.BytesPerSecond}, {"all", group.TotalBytesPerSecond}} {
 			if limit.speed <= 0 {
 				continue
 			}
@@ -657,7 +667,7 @@ func admitHostPolicy(ctx context.Context, email, direction string, size int, acc
 				deadline = time.Now().Add(24 * time.Hour)
 			}
 			waitCtx, cancel := context.WithDeadline(ctx, deadline)
-			err := bucket.fair.wait(waitCtx, owner, email, n)
+			err := bucket.fair.wait(waitCtx, owner, device, n)
 			cancel()
 			if err != nil {
 				return err

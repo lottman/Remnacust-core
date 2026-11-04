@@ -133,3 +133,37 @@ func TestHostPolicyDeviceCapSharesConnectionsButNotOtherDevices(t *testing.T) {
 		t.Fatal("another connection/direction bypassed the authenticated device cap")
 	}
 }
+
+func TestHostPolicyDeviceCapAndFairnessIdentityFollowRecipientAcrossRoutes(t *testing.T) {
+	doc := v2Policy()
+	doc.Groups["a"] = hostLimitPolicy{DeviceBytesPerSecond: policyBurst}
+	first := hostEmail("1", hostA)
+	second := hostEmail("1", hostB)
+	other := strings.Replace(second, "0123456789abcdef01234567", "1123456789abcdef01234567", 1)
+	for _, key := range []string{hostA, hostB} {
+		host := doc.Hosts[key]
+		host.Groups = []string{"a"}
+		host.AllowedIdentities[other] = true
+		doc.Hosts[key] = host
+	}
+	testHostPolicy(t, doc)
+	if hostPolicyDevice(first) != hostPolicyDevice(second) || hostPolicyDevice(first) == hostPolicyDevice(other) {
+		t.Fatal("route aliases did not preserve the authenticated device")
+	}
+	if err := waitHostPolicy(policyContext("shared"), first, "down", policyBurst); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(policyContext("shared"), 40*time.Millisecond)
+	defer cancel()
+	if err := waitHostPolicy(ctx, second, "up", policyBurst); err == nil {
+		t.Fatal("switching pool members bypassed the recipient device cap")
+	}
+	if err := waitHostPolicy(policyContext("shared"), other, "down", policyBurst); err != nil {
+		t.Fatal("another device lost its independent ceiling:", err)
+	}
+	hostPolicies.Lock()
+	defer hostPolicies.Unlock()
+	if len(hostPolicies.buckets) != 2 {
+		t.Fatalf("one device created multiple route buckets: %d", len(hostPolicies.buckets))
+	}
+}

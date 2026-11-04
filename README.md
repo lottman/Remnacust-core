@@ -4,9 +4,9 @@
 
 ## Текущий стабильный комплект
 
-**[Core 1.1.12](https://github.com/lottman/Remnacust-core/releases/tag/v1.1.12)** основан на опубликованном стабильном **Xray v26.10.31**, коммит `a4a3dff5b20c2faae567b742c172c7b95e75c083`. Происхождение и совместимые расширения записаны в [REMNACUST-UPSTREAM.json](xray/REMNACUST-UPSTREAM.json).
+**[Core 1.1.13](https://github.com/lottman/Remnacust-core/releases/tag/v1.1.13)** основан на опубликованном стабильном **Xray v26.10.31**, коммит `a4a3dff5b20c2faae567b742c172c7b95e75c083`. Происхождение и совместимые расширения записаны в [REMNACUST-UPSTREAM.json](xray/REMNACUST-UPSTREAM.json).
 
-Согласованный комплект: [Node 1.1.20](https://github.com/lottman/Remnacust-node/releases/tag/v1.1.20), [панель/страница 1.1.7.86](https://github.com/lottman/Remnacust-panel/releases/tag/v1.1.7.86), [установщик 1.2.122](https://github.com/lottman/Remnacust-installer/releases/tag/v1.2.122). Версии компонентов нумеруются отдельно.
+Согласованный комплект: [Node 1.1.22](https://github.com/lottman/Remnacust-node/releases/tag/v1.1.22), [панель/страница 1.1.7.93](https://github.com/lottman/Remnacust-panel/releases/tag/v1.1.7.93), [установщик 1.2.131](https://github.com/lottman/Remnacust-installer/releases/tag/v1.2.131). Версии компонентов нумеруются отдельно. [Изменения Core 1.1.13](docs/RELEASE-1.1.13.md).
 
 В основе используются опубликованные официальные теги Xray, без произвольного переноса последующего `main`. В 26.10.31 MPTCP выключен по умолчанию; обновление приложения не заменяет обновление ядра Linux. Наш исходящий XDRIVE сохраняет прежнее сегментное объявление для совместимости со старыми серверами; новые режимы не включаются автоматически. [Изменения Core 1.1.12](docs/RELEASE-1.1.12.md).
 
@@ -25,7 +25,7 @@ git clone https://github.com/lottman/Remnacust-core.git
 cd Remnacust-core/xray
 mkdir -p bin
 CGO_ENABLED=0 go build -buildvcs=false -trimpath \
-  -ldflags '-s -w -X github.com/xtls/xray-core/core.build=Remnacust-1.1.12' \
+  -ldflags '-s -w -X github.com/xtls/xray-core/core.build=Remnacust-1.1.13' \
   -o bin/xray ./main
 ./bin/xray version
 ```
@@ -33,6 +33,8 @@ CGO_ENABLED=0 go build -buildvcs=false -trimpath \
 В PowerShell задайте `$env:CGO_ENABLED='0'`, передайте те же аргументы `go build` и используйте `bin/xray.exe`. Для установленной ноды отдельная компиляция на VPS не нужна.
 
 ## Проверка и запуск
+
+При подключении через автовыбор Remnacust панель выдаёт отдельные ключи маршрутов, сохраняя один идентификатор устройства в пределах получателя. Возможность `remnacust-routed-device-speed-v1` объединяет предел устройства и очередь между такими маршрутами. Суффикс хоста продолжает выбирать отдельную политику доступа и учёта; общая квота пользователя сохраняется. Для применения нужен агент, который передаёт эту возможность панели. Обычные прямые ключи сохраняют прежнюю идентичность.
 
 ```bash
 ./bin/xray run -test -config /path/to/config.json

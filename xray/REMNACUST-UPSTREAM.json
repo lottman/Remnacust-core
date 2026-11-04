@@ -20,7 +20,7 @@
     "legacy XDNS name/type/settings.addr",
     "legacy XDRIVE outbound segment announcements"
   ],
-  "version": "1.1.12",
+  "version": "1.1.13",
   "upstreamPatches": [],
   "checkedAt": "2026-11-01T18:12:46.390111+00:00",
   "pendingRelease": false,
