@@ -9,6 +9,7 @@ import (
 )
 
 func main() {
+	setProcessDisplayName()
 	os.Args = getArgsV4Compatible()
 
 	base.RootCommand.Long = "Xray is a platform for building proxies."

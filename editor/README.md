@@ -2,7 +2,7 @@
 
 # Редактор конфигураций Remnacust
 
-Валидатор и схема собираются из текущего **Remnacust Core 1.1.14 / Xray v26.10.31**. После изменения Core пересоберите и поставляйте их вместе; обновление версии исходников не заменяет прежний WASM панели. Production-интерфейс редактора находится в [Remnacust-panel](https://github.com/lottman/Remnacust-panel/tree/main/panel/frontend); этот каталог содержит Go/WASM-сборку и исходный самостоятельный пример Monaco.
+Валидатор и схема собираются из текущего **Remnacust Core 1.1.15 / Xray v26.10.31**. После изменения Core пересоберите и поставляйте их вместе; обновление версии исходников не заменяет прежний WASM панели. Production-интерфейс редактора находится в [Remnacust-panel](https://github.com/lottman/Remnacust-panel/tree/main/panel/frontend); этот каталог содержит Go/WASM-сборку и исходный самостоятельный пример Monaco.
 
 ## Обновление WASM и схемы
 

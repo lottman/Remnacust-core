@@ -8,17 +8,17 @@
 
 | Компонент | Версия |
 | --- | --- |
-| Core | [1.1.14](https://github.com/lottman/Remnacust-core/releases/tag/v1.1.14) |
+| Core | [1.1.15](https://github.com/lottman/Remnacust-core/releases/tag/v1.1.15) |
 | Основа Xray | [v26.10.31](https://github.com/XTLS/Xray-core/releases/tag/v26.10.31) |
-| Node | [1.1.23](https://github.com/lottman/Remnacust-node/releases/tag/v1.1.23) |
-| Панель и страница подписки | [1.1.7.98](https://github.com/lottman/Remnacust-panel/releases/tag/v1.1.7.98) |
-| Installer | [1.2.137](https://github.com/lottman/Remnacust-installer/releases/tag/v1.2.137) |
+| Node | [1.1.24](https://github.com/lottman/Remnacust-node/releases/tag/v1.1.24) |
+| Панель и страница подписки | [1.1.7.99](https://github.com/lottman/Remnacust-panel/releases/tag/v1.1.7.99) |
+| Installer | [1.2.138](https://github.com/lottman/Remnacust-installer/releases/tag/v1.2.138) |
 
-Основа — опубликованный официальный Xray v26.10.31, коммит `a4a3dff5b20c2faae567b742c172c7b95e75c083`. Происхождение: [REMNACUST-UPSTREAM.json](xray/REMNACUST-UPSTREAM.json); [изменения Core 1.1.14](docs/RELEASE-1.1.14.md). Новые исходники в ветке не означают обновление опубликованного бинарника.
+Основа — опубликованный официальный Xray v26.10.31, коммит `a4a3dff5b20c2faae567b742c172c7b95e75c083`. Происхождение: [REMNACUST-UPSTREAM.json](xray/REMNACUST-UPSTREAM.json); [изменения Core 1.1.15](docs/RELEASE-1.1.15.md). Новые исходники в ветке не означают обновление опубликованного бинарника.
 
 ## Установка и обновление
 
-Для VPS используйте готовый комплект из [инструкции Node](https://github.com/lottman/Remnacust-node). Installer 1.2.137 поддерживает Ubuntu 22.04/24.04/26.04 LTS и Debian 12/13, Linux amd64/arm64. Начальный ориентир ноды — 1 CPU и 1 GiB RAM без гарантии ёмкости; Node.js и Go на хосте не нужны.
+Для VPS используйте готовый комплект из [инструкции Node](https://github.com/lottman/Remnacust-node). Installer 1.2.138 поддерживает Ubuntu 22.04/24.04/26.04 LTS и Debian 12/13, Linux amd64/arm64. Начальный ориентир ноды — 1 CPU и 1 GiB RAM без гарантии ёмкости; Node.js и Go на хосте не нужны.
 
 Релизы Core содержат Linux-бинарники amd64/arm64 и `SHA256SUMS`. Для управляемой ноды выбирайте проверенное ядро через панель или `sudo remnacust manage-node`; не подменяйте работающий бинарник вручную. Обновление панели не обновляет удалённые ноды. `sudo remnacust upgrade-node` обновляет образ агента со встроенным Core, но отдельно выбранное managed-ядро может оставаться закреплённым. Проверяйте активные версию и режим.
 
@@ -41,9 +41,9 @@
 
 Для суток автономности нужен запас срока и локального кредита на трафик и восстановление. Restart требует совместимых Node/Core, сохранённых конфигурации, credentials и журналов. Нельзя гарантировать 24 часа для любого прежнего ядра или после потери состояния. [Условия автономности](https://github.com/lottman/Remnacust-panel/blob/main/docs/NODE-AUTONOMY.md).
 
-## Изменения Core 1.1.14
+## Изменения Core 1.1.15
 
-Исправлены владение MUX-сессией и её quota lease, восстановление квот после истечения части грантов и распаковка сертификатов uTLS на совместимой основе; обновлены Brotli/compress. Чтение незавершённого Xera packet-up ограничено 300 секундами с освобождением ресурсов при отмене, без общего таймаута для streaming/long polling. Новый профиль Xera требует согласованного обновления клиента и сервера. Для полного offline restart нужны Node 1.1.23 и Core 1.1.14 с сохранённым приватным состоянием. Проверены 24 виртуальных часа с восстановлением и исчерпанием квот; это не реальный суточный сетевой прогон. [Изменения выпуска](docs/RELEASE-1.1.14.md).
+В Linux отображаемое имя процесса — `rc-core`; исполняемый файл `rw-core`, аргументы, пути и контракты core-manager сохранены. Исправления MUX, Xera, uTLS и offline recovery из 1.1.14 остаются в составе. Суточная автономность по-прежнему требует запаса срока и локального кредита; проверки виртуальных суток не являются реальным суточным сетевым прогоном. [Изменения выпуска](docs/RELEASE-1.1.15.md).
 
 ## Сборка и проверка
 
