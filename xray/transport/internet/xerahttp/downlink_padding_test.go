@@ -14,6 +14,8 @@ import (
 	"testing"
 	"testing/iotest"
 	"time"
+
+	"github.com/xtls/xray-core/common/buf"
 )
 
 type paddingBuffer struct{ bytes.Buffer }
@@ -180,6 +182,39 @@ func TestCustomDownlinkRequiresAcknowledgement(t *testing.T) {
 		} else if err == nil || !strings.Contains(err.Error(), "did not confirm") || len(data) != 0 {
 			t.Fatalf("unsafe fallback: %q %v", data, err)
 		}
+	}
+}
+
+func TestPacketPaddingMarkerAndAcknowledgement(t *testing.T) {
+	for _, responseMarker := range []string{"match", "missing", "wrong", "duplicate"} {
+		t.Run(responseMarker, func(t *testing.T) {
+			p := testDownlinkConfig()
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if !p.matchesHeader(r.Header) {
+					t.Error("downlink-only configuration omitted the upload marker")
+				}
+				body, err := io.ReadAll(r.Body)
+				if err != nil || string(body) != "payload" {
+					t.Error("downlink-only configuration changed the upload body", err)
+				}
+				switch responseMarker {
+				case "match":
+					w.Header().Set(p.Header, p.wireValue())
+				case "wrong":
+					w.Header().Set(p.Header, "1.other_random_token_123456")
+				case "duplicate":
+					w.Header().Add(p.Header, p.wireValue())
+					w.Header().Add(p.Header, p.wireValue())
+				}
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer server.Close()
+			client := &DefaultDialerClient{client: server.Client(), transportConfig: &Config{CustomDownlinkPadding: p}}
+			err := client.PostPacket(context.Background(), server.URL, "session", "0", buf.MergeBytes(nil, []byte("payload")))
+			if (err == nil) != (responseMarker == "match") {
+				t.Fatalf("response %s: %v", responseMarker, err)
+			}
+		})
 	}
 }
 

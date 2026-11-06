@@ -175,7 +175,7 @@ func createHTTPClient(dest net.Destination, streamSettings *internet.MemoryStrea
 		gotlsConfig = tlsConfig.GetTLSConfig(tls.WithDestination(dest))
 	}
 
-	transportConfig := streamSettings.ProtocolSettings.(*Config)
+	transportConfig := configForHTTPClient(streamSettings)
 
 	dialContext := func(ctxInner context.Context) (net.Conn, error) {
 		ctxInner, cancel := context.WithTimeout(ctxInner, 16*time.Second)
@@ -340,6 +340,9 @@ func createHTTPClient(dest net.Destination, streamSettings *internet.MemoryStrea
 			},
 			IdleConnTimeout: net.ConnIdleTimeout,
 			ReadIdleTimeout: keepAlivePeriod,
+		}
+		if usesChrome133HTTP2(streamSettings) {
+			transport = newBrowserH2Transport(dialContext, keepAlivePeriod)
 		}
 	} else {
 		httpDialContext := func(ctxInner context.Context, network string, addr string) (net.Conn, error) {

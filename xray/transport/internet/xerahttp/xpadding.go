@@ -2,7 +2,6 @@ package xerahttp
 
 import (
 	"crypto/rand"
-	"math"
 	"net/http"
 	"net/url"
 	"strings"
@@ -12,14 +11,17 @@ import (
 
 type PaddingMethod string
 
-const (
-	PaddingMethodRepeatX  PaddingMethod = "repeat-x"
-	PaddingMethodTokenish PaddingMethod = "tokenish"
-)
+const PaddingMethodTokenish PaddingMethod = "tokenish"
 
 const charsetBase62 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 
-const avgHuffmanBytesPerCharBase62 = 0.8
+var base62HuffmanBits = func() [len(charsetBase62)]int {
+	var bits [len(charsetBase62)]int
+	for i, value := range []byte(charsetBase62) {
+		bits[i] = int(hpack.HuffmanEncodeLength(strings.Repeat(string(value), 8)))
+	}
+	return bits
+}()
 
 const validationTolerance = 2
 
@@ -37,17 +39,15 @@ type XPaddingConfig struct {
 }
 
 func GenerateTokenishPaddingBase62(targetHuffmanBytes int) string {
-	if targetHuffmanBytes <= 0 {
+	if targetHuffmanBytes <= 0 || targetHuffmanBytes > maxXPaddingBytes {
 		return ""
 	}
-	n := int(math.Ceil(float64(targetHuffmanBytes) / avgHuffmanBytesPerCharBase62))
-	if n < 1 {
-		n = 1
-	}
+	targetBits := targetHuffmanBytes * 8
 	limit := byte(256 - (256 % len(charsetBase62)))
-	result := make([]byte, n)
+	result := make([]byte, 0, (targetBits+4)/5)
+	encodedBits := 0
 	var randomBytes [256]byte
-	for i := 0; i < n; {
+	for encodedBits < targetBits-7 {
 		if _, err := rand.Read(randomBytes[:]); err != nil {
 			return ""
 		}
@@ -55,35 +55,15 @@ func GenerateTokenishPaddingBase62(targetHuffmanBytes int) string {
 			if value >= limit {
 				continue
 			}
-			result[i] = charsetBase62[int(value)%len(charsetBase62)]
-			i++
-			if i == n {
+			index := int(value) % len(charsetBase62)
+			result = append(result, charsetBase62[index])
+			encodedBits += base62HuffmanBits[index]
+			if encodedBits >= targetBits-7 {
 				break
 			}
 		}
 	}
-	value := string(result)
-	adjust := byte('X')
-	for i := 0; i < 150; i++ {
-		diff := int(hpack.HuffmanEncodeLength(value)) - targetHuffmanBytes
-		if diff >= -validationTolerance && diff <= validationTolerance {
-			return value
-		}
-		if diff < 0 {
-			value += string(adjust)
-			if adjust == 'X' {
-				adjust = 'Z'
-			} else {
-				adjust = 'X'
-			}
-			continue
-		}
-		if len(value) <= 1 {
-			break
-		}
-		value = value[:len(value)-1]
-	}
-	return value
+	return string(result)
 }
 
 func GeneratePadding(method PaddingMethod, length int) string {
@@ -92,16 +72,10 @@ func GeneratePadding(method PaddingMethod, length int) string {
 	}
 
 	switch method {
-	case PaddingMethodRepeatX:
-		return strings.Repeat("X", length)
 	case PaddingMethodTokenish:
-		paddingValue := GenerateTokenishPaddingBase62(length)
-		if paddingValue == "" {
-			return strings.Repeat("X", length)
-		}
-		return paddingValue
+		return GenerateTokenishPaddingBase62(length)
 	default:
-		return strings.Repeat("X", length)
+		return ""
 	}
 }
 
@@ -215,66 +189,30 @@ func (c *Config) ApplyXPaddingToResponse(writer http.ResponseWriter, config XPad
 	}
 }
 
-func (c *Config) ExtractXPaddingFromRequest(req *http.Request, obfsMode bool) (string, string) {
+func (c *Config) ExtractXPaddingFromRequest(req *http.Request) (string, string) {
 	if req == nil {
 		return "", ""
 	}
 
-	if !obfsMode {
-		key := c.GetNormalizedXPaddingKey()
-		header := c.GetNormalizedXPaddingHeader()
-		switch c.GetNormalizedXPaddingPlacement() {
-		case PlacementQueryInHeader:
-			headerValue := req.Header.Get(header)
-			if headerValue != "" {
-				if referrerURL, err := url.Parse(headerValue); err == nil {
-					return referrerURL.Query().Get(key), PlacementQueryInHeader + "=" + header + ", key=" + key
-				}
-			}
-		case PlacementHeader:
-			return req.Header.Get(header), PlacementHeader + "=" + header
-		case PlacementCookie:
-			if cookie, err := req.Cookie(key); err == nil && cookie != nil {
-				return cookie.Value, PlacementCookie + ", key=" + key
-			}
-		default:
-			return req.URL.Query().Get(key), PlacementQuery + ", key=" + key
-		}
-	}
-
 	key := c.GetNormalizedXPaddingKey()
 	header := c.GetNormalizedXPaddingHeader()
-
-	if cookie, err := req.Cookie(key); err == nil {
-		if cookie != nil && cookie.Value != "" {
-			paddingValue := cookie.Value
-			paddingPlacement := PlacementCookie + ", key=" + key
-			return paddingValue, paddingPlacement
+	switch c.GetNormalizedXPaddingPlacement() {
+	case PlacementQueryInHeader:
+		headerValue := req.Header.Get(header)
+		if headerValue != "" {
+			if referrerURL, err := url.Parse(headerValue); err == nil {
+				return referrerURL.Query().Get(key), PlacementQueryInHeader + "=" + header + ", key=" + key
+			}
 		}
-	}
-
-	headerValue := req.Header.Get(header)
-
-	if headerValue != "" {
-		if c.GetNormalizedXPaddingPlacement() == PlacementHeader {
-			paddingPlacement := PlacementHeader + "=" + header
-			return headerValue, paddingPlacement
+	case PlacementHeader:
+		return req.Header.Get(header), PlacementHeader + "=" + header
+	case PlacementCookie:
+		if cookie, err := req.Cookie(key); err == nil && cookie != nil {
+			return cookie.Value, PlacementCookie + ", key=" + key
 		}
-
-		if parsedURL, err := url.Parse(headerValue); err == nil {
-			paddingPlacement := PlacementQueryInHeader + "=" + header + ", key=" + key
-
-			return parsedURL.Query().Get(key), paddingPlacement
-		}
+	default:
+		return req.URL.Query().Get(key), PlacementQuery + ", key=" + key
 	}
-
-	queryValue := req.URL.Query().Get(key)
-
-	if queryValue != "" {
-		paddingPlacement := PlacementQuery + ", key=" + key
-		return queryValue, paddingPlacement
-	}
-
 	return "", ""
 }
 
@@ -288,10 +226,10 @@ func (c *Config) IsPaddingValid(paddingValue string, from, to int32, method Padd
 	}
 
 	switch method {
-	case PaddingMethodRepeatX:
-		n := int32(len(paddingValue))
-		return n >= from && n <= to
 	case PaddingMethodTokenish:
+		if strings.Trim(paddingValue, charsetBase62) != "" {
+			return false
+		}
 		const tolerance = int32(validationTolerance)
 
 		n := int32(hpack.HuffmanEncodeLength(paddingValue))
@@ -302,7 +240,6 @@ func (c *Config) IsPaddingValid(paddingValue string, from, to int32, method Padd
 		}
 		return n >= f && n <= t
 	default:
-		n := int32(len(paddingValue))
-		return n >= from && n <= to
+		return false
 	}
 }

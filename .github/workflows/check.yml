@@ -16,6 +16,8 @@ jobs:
           cache-dependency-path: xray/go.sum
       - name: Require a published official upstream tag
         run: python3 ../tests/upstream-release-policy.test.py --verify-remote
+      - name: Verify pinned uTLS certificate decompression and stream boundaries
+        run: python3 ../tests/utls-certificate-compression.test.py --race --verify-upstream
       - run: go test -race ./infra/conf ./core ./app/dispatcher ./app/stats ./app/stats/command ./main/commands/all/api ./app/proxyman/inbound ./app/proxyman/outbound ./app/proxyman/command ./app/router/command ./common/mux ./proxy/freedom ./transport/internet ./transport/internet/grpc ./transport/internet/splithttp ./transport/internet/xerahttp ./transport/internet/hysteria ./transport/internet/tls
       - name: Preserve existing explicit inbound management semantics
         run: go test ./testing/scenarios -run TestCommander -count=1

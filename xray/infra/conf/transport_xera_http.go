@@ -17,7 +17,6 @@ type XeraHTTPConfig struct {
 	Mode                   string                     `json:"mode"`
 	Headers                map[string]string          `json:"headers"`
 	XPaddingBytes          Int32Range                 `json:"xPaddingBytes"`
-	XPaddingObfsMode       bool                       `json:"xPaddingObfsMode"`
 	XPaddingKey            string                     `json:"xPaddingKey"`
 	XPaddingHeader         string                     `json:"xPaddingHeader"`
 	XPaddingPlacement      string                     `json:"xPaddingPlacement"`
@@ -32,8 +31,6 @@ type XeraHTTPConfig struct {
 	UplinkDataPlacement    string                     `json:"uplinkDataPlacement"`
 	UplinkDataKey          string                     `json:"uplinkDataKey"`
 	UplinkChunkSize        Int32Range                 `json:"uplinkChunkSize"`
-	NoGRPCHeader           *bool                      `json:"noGRPCHeader"`
-	NoSSEHeader            *bool                      `json:"noSSEHeader"`
 	ScMaxEachPostBytes     Int32Range                 `json:"scMaxEachPostBytes"`
 	ScMinPostsIntervalMs   Int32Range                 `json:"scMinPostsIntervalMs"`
 	ScMaxBufferedPosts     int64                      `json:"scMaxBufferedPosts"`
@@ -42,6 +39,21 @@ type XeraHTTPConfig struct {
 	Xmux                   XeraMuxConfig              `json:"xmux"`
 	DownloadSettings       *StreamConfig              `json:"downloadSettings"`
 	Extra                  json.RawMessage            `json:"extra"`
+	H2Params               json.RawMessage            `json:"h2Params"`
+}
+
+func (c *XeraHTTPConfig) UnmarshalJSON(data []byte) error {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	for name := range fields {
+		if strings.EqualFold(name, "xPaddingObfsMode") || strings.EqualFold(name, "noGRPCHeader") || strings.EqualFold(name, "noSSEHeader") {
+			return errors.New(name, " was removed from Xera HTTP; remove this field and update both peers")
+		}
+	}
+	type plain XeraHTTPConfig
+	return json.Unmarshal(data, (*plain)(c))
 }
 
 type XeraDownlinkPaddingConfig struct {
@@ -177,7 +189,7 @@ func (c *XeraHTTPConfig) Build() (proto.Message, error) {
 	switch c.XPaddingMethod {
 	case "":
 		c.XPaddingMethod = "tokenish"
-	case "repeat-x", "tokenish":
+	case "tokenish":
 	default:
 		return nil, errors.New("unsupported padding method: " + c.XPaddingMethod)
 	}
@@ -295,14 +307,6 @@ func (c *XeraHTTPConfig) Build() (proto.Message, error) {
 			}
 		}
 	}
-	noGRPCHeader := true
-	if c.NoGRPCHeader != nil {
-		noGRPCHeader = *c.NoGRPCHeader
-	}
-	noSSEHeader := true
-	if c.NoSSEHeader != nil {
-		noSSEHeader = *c.NoSSEHeader
-	}
 	config := &xerahttp.Config{
 		ServerMaxBufferedBytes: c.ServerMaxBufferedBytes,
 		ServerMaxSessions:      c.ServerMaxSessions,
@@ -311,7 +315,7 @@ func (c *XeraHTTPConfig) Build() (proto.Message, error) {
 		Mode:                   c.Mode,
 		Headers:                c.Headers,
 		XPaddingBytes:          newXeraRangeConfig(c.XPaddingBytes),
-		XPaddingObfsMode:       c.XPaddingObfsMode,
+		H2Params:               c.H2Params,
 		XPaddingKey:            c.XPaddingKey,
 		XPaddingHeader:         c.XPaddingHeader,
 		XPaddingPlacement:      c.XPaddingPlacement,
@@ -325,8 +329,6 @@ func (c *XeraHTTPConfig) Build() (proto.Message, error) {
 		UplinkDataPlacement:    c.UplinkDataPlacement,
 		UplinkDataKey:          c.UplinkDataKey,
 		UplinkChunkSize:        newXeraRangeConfig(c.UplinkChunkSize),
-		NoGRPCHeader:           noGRPCHeader,
-		NoSSEHeader:            noSSEHeader,
 		ScMaxEachPostBytes:     newXeraRangeConfig(c.ScMaxEachPostBytes),
 		ScMinPostsIntervalMs:   newXeraRangeConfig(c.ScMinPostsIntervalMs),
 		ScMaxBufferedPosts:     c.ScMaxBufferedPosts,

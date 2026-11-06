@@ -1,0 +1,34 @@
+--- a/u_handshake_client.go
++++ b/u_handshake_client.go
+@@ -100,8 +100,8 @@
+ 	rawMsg[2] = uint8(m.uncompressedLength >> 8)
+ 	rawMsg[3] = uint8(m.uncompressedLength)
+ 
+-	n, err := decompressed.Read(rawMsg[4:])
+-	if err != nil && !errors.Is(err, io.EOF) {
++	n, err := io.ReadFull(decompressed, rawMsg[4:])
++	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
+ 		c.sendAlert(alertBadCertificate)
+ 		return nil, err
+ 	}
+@@ -111,6 +111,20 @@
+ 		// https://datatracker.ietf.org/doc/html/rfc8879#section-4
+ 		c.sendAlert(alertBadCertificate)
+ 		return nil, fmt.Errorf("decompressed len (%d) does not match specified len (%d)", n, m.uncompressedLength)
++	}
++	var extra [1]byte
++	n, err = io.ReadFull(decompressed, extra[:])
++	if n != 0 {
++		c.sendAlert(alertBadCertificate)
++		return nil, fmt.Errorf("decompressed len exceeds specified len (%d)", m.uncompressedLength)
++	}
++	if !errors.Is(err, io.EOF) {
++		c.sendAlert(alertBadCertificate)
++		return nil, err
++	}
++	if compressed.Len() != 0 {
++		c.sendAlert(alertBadCertificate)
++		return nil, errors.New("trailing data after compressed certificate stream")
+ 	}
+ 	certMsg := new(certificateMsgTLS13)
+ 	if !certMsg.unmarshal(rawMsg) {

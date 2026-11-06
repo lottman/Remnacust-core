@@ -74,6 +74,11 @@ func TestXeraRejectsInvalidRuntimeRanges(t *testing.T) {
 		`{"sessionIDLength":257,"sessionIDTable":"abc"}`,
 		`{"serverMaxHeaderBytes":1048577}`,
 		`{"serverMaxSessions":65537}`,
+		`{"xmux":{"hKeepAlivePeriod":9223372036854775807}}`,
+		`{"xmux":{"hKeepAlivePeriod":604801}}`,
+		`{"xmux":{"hKeepAlivePeriod":-2}}`,
+		`{"headers":{"X-Note":"valid\r\nInjected: value"}}`,
+		`{"headers":{"Bad Header":"value"}}`,
 		`{"sessionIDLength":"1-2147483647","sessionIDTable":"abc"}`,
 	} {
 		var c XeraHTTPConfig
@@ -82,6 +87,57 @@ func TestXeraRejectsInvalidRuntimeRanges(t *testing.T) {
 		}
 		if _, err := c.Build(); err == nil {
 			t.Fatalf("accepted invalid runtime range: %s", value)
+		}
+	}
+}
+
+func TestXeraKeepAliveDefaultsAndBoundaries(t *testing.T) {
+	for _, seconds := range []int64{-1, 0, 1, 604800} {
+		config := XeraHTTPConfig{Xmux: XeraMuxConfig{HKeepAlivePeriod: seconds}}
+		if _, err := config.Build(); err != nil {
+			t.Fatalf("rejected keepalive %d: %v", seconds, err)
+		}
+	}
+}
+
+func TestXeraRejectsRemovedWireOptions(t *testing.T) {
+	for _, value := range []string{`{"xPaddingObfsMode":false}`, `{"xPaddingObfsMode":true}`, `{"noGRPCHeader":true}`, `{"noSSEHeader":false}`, `{"xPaddingMethod":"repeat-x"}`} {
+		for _, extra := range []bool{false, true} {
+			input := value
+			if extra {
+				input = `{"extra":` + value + `}`
+			}
+			var config XeraHTTPConfig
+			if err := json.Unmarshal([]byte(input), &config); err != nil {
+				continue
+			}
+			if _, err := config.Build(); err == nil {
+				t.Errorf("accepted removed wire option: %s", input)
+			}
+		}
+	}
+}
+
+func TestXeraHTTP2ConfigSurvivesSerialization(t *testing.T) {
+	for _, value := range []string{`{"h2Params":{"MaxConcurrentStreams":128,"MaxReadFrameSize":65536}}`, `{"extra":{"h2Params":{"MaxConcurrentStreams":128,"MaxReadFrameSize":65536}}}`} {
+		var config XeraHTTPConfig
+		if err := json.Unmarshal([]byte(value), &config); err != nil {
+			t.Fatal(err)
+		}
+		message, err := config.Build()
+		if err != nil {
+			t.Fatal(err)
+		}
+		wire, err := proto.Marshal(message)
+		if err != nil {
+			t.Fatal(err)
+		}
+		decoded := new(xerahttp.Config)
+		if err := proto.Unmarshal(wire, decoded); err != nil {
+			t.Fatal(err)
+		}
+		if len(decoded.H2Params) == 0 {
+			t.Fatal("HTTP/2 parameters lost during serialization")
 		}
 	}
 }

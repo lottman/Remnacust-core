@@ -5,3 +5,4 @@ Dockerfile text eol=lf
 *.png binary
 *.ico binary
 *.wasm binary
+vendor/utls/** text eol=lf

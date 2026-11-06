@@ -79,7 +79,7 @@ func (m *SessionManager) Add(s *Session) bool {
 	m.Lock()
 	defer m.Unlock()
 
-	if m.closed {
+	if _, exists := m.sessions[s.ID]; m.closed || exists {
 		return false
 	}
 
@@ -205,7 +205,9 @@ func (s *Session) Close(locked bool) error {
 		}
 		XUDPManager.Unlock()
 	}
-	s.parent.Remove(locked, s.ID)
+	if s.parent.sessions[s.ID] == s {
+		s.parent.Remove(locked, s.ID)
+	}
 	return nil
 }
 

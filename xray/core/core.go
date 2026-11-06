@@ -20,13 +20,13 @@ import (
 var (
 	Version_x byte = 1
 	Version_y byte = 1
-	Version_z byte = 13
+	Version_z byte = 14
 )
 
 var (
 	build    = "Custom"
 	codename = "Xray, Penetrates Everything."
-	intro    = "Remnacust Core 1.1.12. Based on Xray-core v26.10.31."
+	intro    = ""
 )
 
 func init() {
@@ -65,8 +65,12 @@ func Version() string {
 
 // VersionStatement returns a list of strings representing the full version info.
 func VersionStatement() []string {
+	introduction := intro
+	if introduction == "" {
+		introduction = fmt.Sprintf("Remnacust Core %s. Based on Xray-core v26.10.31.", Version())
+	}
 	return []string{
 		serial.Concat("Xray ", Version(), " (", codename, ") ", build, " (", runtime.Version(), " ", runtime.GOOS, "/", runtime.GOARCH, ")"),
-		intro,
+		introduction,
 	}
 }

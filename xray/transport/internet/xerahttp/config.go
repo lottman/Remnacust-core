@@ -15,6 +15,7 @@ import (
 	"github.com/xtls/xray-core/common/crypto"
 	"github.com/xtls/xray-core/common/utils"
 	"github.com/xtls/xray-core/transport/internet"
+	"golang.org/x/net/http/httpguts"
 )
 
 const (
@@ -36,6 +37,23 @@ const (
 func (c *Config) Validate() error {
 	if c == nil {
 		return fmt.Errorf("XERA-HTTP config is nil")
+	}
+	if c.XPaddingObfsMode {
+		return fmt.Errorf("xPaddingObfsMode was removed; tokenish padding is always enabled")
+	}
+	if c.XPaddingMethod != "" && c.XPaddingMethod != string(PaddingMethodTokenish) {
+		return fmt.Errorf("xPaddingMethod must be tokenish; legacy padding methods were removed")
+	}
+	if _, err := c.http2Config(); err != nil {
+		return err
+	}
+	if err := c.validateMetadata(); err != nil {
+		return err
+	}
+	for name, value := range c.Headers {
+		if !httpguts.ValidHeaderFieldName(name) || !httpguts.ValidHeaderFieldValue(value) || strings.EqualFold(name, "Host") {
+			return fmt.Errorf("headers must contain valid HTTP fields; set host separately")
+		}
 	}
 	switch c.Mode {
 	case "", ModeAuto, ModeStreamAuto, ModeStreamOne, ModeStreamUp, ModePacketUp:
@@ -93,6 +111,9 @@ func (c *Config) Validate() error {
 		return err
 	}
 	if x := c.Xmux; x != nil {
+		if x.HKeepAlivePeriod < -1 || x.HKeepAlivePeriod > maxXMUXReusableSecs {
+			return fmt.Errorf("xmux.hKeepAlivePeriod must be within -1..604800 seconds")
+		}
 		if err := validateNonNegativeRange("xmux.maxConnections", x.MaxConnections, maxXMUXConnections); err != nil {
 			return err
 		}
@@ -196,11 +217,35 @@ func (c *Config) GetNormalizedQuery() string {
 }
 
 func (c *Config) GetRequestHeader() http.Header {
+	return c.requestHeaders("")
+}
+
+func (c *Config) requestHeaders(profile string) http.Header {
 	header := http.Header{}
 	for k, v := range c.Headers {
-		header.Add(k, v)
+		if strings.EqualFold(k, "User-Agent") {
+			header.Set("User-Agent", v)
+		}
+	}
+	if len(header.Values("User-Agent")) == 0 && profile != "" {
+		header.Set("User-Agent", profile)
 	}
 	utils.TryDefaultHeadersWith(header, "fetch")
+	normalized := make(http.Header, len(header))
+	for name, values := range header {
+		key := http.CanonicalHeaderKey(name)
+		normalized[key] = append(normalized[key], values...)
+	}
+	header = normalized
+	for k, v := range c.Headers {
+		if strings.EqualFold(k, "User-Agent") {
+			switch v {
+			case "chrome", "firefox", "safari", "edge", "curl", "golang":
+				continue
+			}
+		}
+		header.Set(k, v)
+	}
 	return header
 }
 
@@ -248,7 +293,9 @@ func (c *Config) WriteResponseHeader(writer http.ResponseWriter, requestMethod s
 			writer.Header().Set("Access-Control-Allow-Credentials", "true")
 		}
 
-		if requestMethod == "OPTIONS" {
+		writer.Header().Add("Vary", "Origin")
+		if requestMethod == "OPTIONS" && requestHeader.Get("Access-Control-Request-Method") != "" {
+			writer.Header().Add("Vary", "Access-Control-Request-Method, Access-Control-Request-Headers")
 			requestedMethod := requestHeader.Get("Access-Control-Request-Method")
 			if requestedMethod != "" {
 				writer.Header().Set("Access-Control-Allow-Methods", requestedMethod)
@@ -504,15 +551,13 @@ func (c *Config) FillPacketRequest(request *http.Request, sessionId string, seqS
 func (c *Config) newXPaddingConfig(rawURL string) XPaddingConfig {
 	config := XPaddingConfig{
 		Length: int(c.GetNormalizedXPaddingBytes().rand()),
+		Method: c.GetNormalizedXPaddingMethod(),
 		Placement: XPaddingPlacement{
 			Placement: c.GetNormalizedXPaddingPlacement(),
 			Key:       c.GetNormalizedXPaddingKey(),
 			Header:    c.GetNormalizedXPaddingHeader(),
 			RawURL:    rawURL,
 		},
-	}
-	if c.XPaddingObfsMode {
-		config.Method = c.GetNormalizedXPaddingMethod()
 	}
 	return config
 }

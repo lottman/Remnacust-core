@@ -25,10 +25,11 @@ type uploadQueue struct {
 	nextSeq    uint64
 	maxPackets int
 	closed     bool
+	done       chan struct{}
 }
 
 func NewUploadQueue(maxPackets int) *uploadQueue {
-	q := &uploadQueue{maxPackets: max(1, maxPackets), pending: make(map[uint64]struct{})}
+	q := &uploadQueue{maxPackets: max(1, maxPackets), pending: make(map[uint64]struct{}), done: make(chan struct{})}
 	q.changed = sync.NewCond(&q.mu)
 	return q
 }
@@ -101,6 +102,7 @@ func (q *uploadQueue) Close() error {
 		return nil
 	}
 	q.closed = true
+	close(q.done)
 	r := q.reader
 	q.reader = nil
 	for _, packet := range q.heap {

@@ -15,14 +15,34 @@ func TestTokenishPaddingEncodedLength(t *testing.T) {
 			for range 8 {
 				value := GenerateTokenishPaddingBase62(size)
 				got := int(hpack.HuffmanEncodeLength(value))
-				if got < size-2 || got > size+2 {
-					t.Fatalf("encoded length = %d, want %d within tolerance", got, size)
+				if got != size {
+					t.Fatalf("encoded length = %d, want %d", got, size)
 				}
 				if strings.Trim(value, charsetBase62) != "" {
 					t.Fatal("padding contains non-base62 characters")
 				}
 			}
 		})
+	}
+}
+
+func TestTokenishPaddingEveryLengthAndBounds(t *testing.T) {
+	for size := 1; size <= 4096; size++ {
+		value := GenerateTokenishPaddingBase62(size)
+		if got := int(hpack.HuffmanEncodeLength(value)); got != size {
+			t.Fatalf("encoded length = %d, want %d", got, size)
+		}
+	}
+	for _, size := range []int{-1, 0, maxXPaddingBytes + 1, int(^uint(0) >> 1)} {
+		if value := GenerateTokenishPaddingBase62(size); value != "" {
+			t.Fatalf("out-of-bounds size %d produced padding", size)
+		}
+	}
+	for i, value := range []byte(charsetBase62) {
+		bits := base62HuffmanBits[i]
+		if bits < 5 || bits > 8 || int(hpack.HuffmanEncodeLength(strings.Repeat(string(value), 32)))*8 != bits*32 {
+			t.Fatalf("unsupported Huffman code length for %q: %d", value, bits)
+		}
 	}
 }
 

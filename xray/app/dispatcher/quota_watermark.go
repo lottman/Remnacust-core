@@ -45,8 +45,12 @@ func (s *quotaStore) validateCheckpoint(policy hostPolicyDocument) (uint64, erro
 }
 
 func validateQuotaCheckpointStartup() error {
+	return validateQuotaCheckpointStartupFrom(hostPolicyPath)
+}
+
+func validateQuotaCheckpointStartupFrom(path string) error {
 	var saved hostPolicyDocument
-	data, policyErr := os.ReadFile(hostPolicyPath)
+	data, policyErr := os.ReadFile(path)
 	if policyErr == nil && json.Unmarshal(data, &saved) != nil {
 		return errors.New("saved quota policy is invalid")
 	}

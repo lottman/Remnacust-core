@@ -15,6 +15,9 @@ func TestResolveStreamAutoMode(t *testing.T) {
 		{name: "tls h2 behind possible CDN", httpVersion: "2", expected: ModePacketUp},
 		{name: "tls h3", httpVersion: "3", expected: ModePacketUp},
 		{name: "plain h1", httpVersion: "1.1", expected: ModePacketUp},
+		{name: "reality h1", httpVersion: "1.1", isReality: true, expected: ModePacketUp},
+		{name: "reality h3", httpVersion: "3", isReality: true, expected: ModePacketUp},
+		{name: "tls h2 with downlink", httpVersion: "2", hasDownloadSettings: true, expected: ModePacketUp},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

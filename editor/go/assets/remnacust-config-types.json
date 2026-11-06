@@ -3721,6 +3721,7 @@
         "$ref": "#/definitions/RemnacustCoreStreamConfig"
       },
       "extra": {},
+      "h2Params": {},
       "headers": {
         "additionalProperties": {
           "type": "string"
@@ -3732,12 +3733,6 @@
       },
       "mode": {
         "type": "string"
-      },
-      "noGRPCHeader": {
-        "type": "boolean"
-      },
-      "noSSEHeader": {
-        "type": "boolean"
       },
       "path": {
         "type": "string"
@@ -3822,9 +3817,6 @@
       },
       "xPaddingMethod": {
         "type": "string"
-      },
-      "xPaddingObfsMode": {
-        "type": "boolean"
       },
       "xPaddingPlacement": {
         "type": "string"
@@ -3927,6 +3919,9 @@
       }
     },
     "type": "object"
+  },
+  "RemnacustCoreplain": {
+    "$ref": "#/definitions/RemnacustCoreXeraHTTPConfig"
   },
   "RemnacustCorestrategyEmptyConfig": {
     "additionalProperties": true,

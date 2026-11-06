@@ -1,7 +1,6 @@
 package xerahttp
 
 import (
-	"bytes"
 	"context"
 	"crypto/rand"
 	gotls "crypto/tls"
@@ -125,62 +124,44 @@ func (h *requestHandler) deleteSession(id string, session *httpSession) bool {
 
 func (h *requestHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	if len(h.host) > 0 && !internet.IsValidHTTPHost(request.Host, h.host) {
-		errors.LogInfo(context.Background(), "failed to validate host, request:", request.Host, ", config:", h.host)
-		writer.WriteHeader(http.StatusNotFound)
+		h.rejectRequest(writer, request)
 		return
 	}
 
 	if !isValidRequestPath(request.URL.Path, h.path) {
-		errors.LogInfo(context.Background(), "failed to validate path, request:", request.URL.Path, ", config:", h.path)
-		writer.WriteHeader(http.StatusNotFound)
+		h.rejectRequest(writer, request)
 		return
 	}
 
-	h.config.WriteResponseHeader(writer, request.Method, request.Header)
-	length := int(h.config.GetNormalizedXPaddingBytes().rand())
-	config := XPaddingConfig{Length: length}
-
-	if h.config.XPaddingObfsMode {
-		config.Placement = XPaddingPlacement{
-			Placement: h.config.GetNormalizedXPaddingPlacement(),
-			Key:       h.config.GetNormalizedXPaddingKey(),
-			Header:    h.config.GetNormalizedXPaddingHeader(),
+	if request.Method == http.MethodOptions && request.Header.Get("Access-Control-Request-Method") != "" {
+		if h.config.CustomDownlinkPadding != nil || request.Header.Get("Origin") == "" || !h.acceptsMethod(request.Header.Get("Access-Control-Request-Method")) {
+			h.rejectRequest(writer, request)
+			return
 		}
-		config.Method = h.config.GetNormalizedXPaddingMethod()
-	} else {
-		config.Placement = XPaddingPlacement{
-			Placement: PlacementHeader,
-			Header:    h.config.GetNormalizedXPaddingHeader(),
-		}
-	}
-
-	if h.config.XPaddingObfsMode {
-		h.config.ApplyXPaddingToResponse(writer, config)
-	}
-
-	if request.Method == "OPTIONS" {
+		h.config.WriteResponseHeader(writer, request.Method, request.Header)
 		writer.WriteHeader(http.StatusOK)
+		return
+	}
+	if !h.acceptsMethod(request.Method) {
+		h.rejectRequest(writer, request)
 		return
 	}
 
 	validRange := h.config.GetNormalizedXPaddingBytes()
-	paddingValue, paddingPlacement := h.config.ExtractXPaddingFromRequest(request, h.config.XPaddingObfsMode)
+	paddingValue, _ := h.config.ExtractXPaddingFromRequest(request)
 
 	if !h.config.IsPaddingValid(paddingValue, validRange.From, validRange.To, h.config.GetNormalizedXPaddingMethod()) {
-		errors.LogInfo(context.Background(), "invalid padding ("+paddingPlacement+") length:", int32(len(paddingValue)))
-		writer.WriteHeader(http.StatusBadRequest)
+		h.rejectRequest(writer, request)
 		return
 	}
-	obfsPaddingAccepted := h.config.XPaddingObfsMode && paddingValue != ""
 	customPadding := h.config.CustomDownlinkPadding
 	useCustomPadding := false
 	if customPadding != nil {
-		value := request.Header.Get(customPadding.Header)
-		if value != "" && value != customPadding.wireValue() {
-			writer.WriteHeader(http.StatusBadRequest)
+		if !customPadding.matchesHeader(request.Header) {
+			h.rejectRequest(writer, request)
 			return
 		}
-		useCustomPadding = value != ""
+		useCustomPadding = true
 	}
 	useCustomUplink := useCustomPadding && customPadding.Uplink
 	if useCustomPadding {
@@ -188,11 +169,32 @@ func (h *requestHandler) ServeHTTP(writer http.ResponseWriter, request *http.Req
 	}
 
 	sessionId, seqStr := h.config.ExtractMetaFromRequest(request, h.path)
-
-	if sessionId == "" && !isModeAllowed(h.config.Mode, ModeStreamOne) && !isModeAllowed(h.config.Mode, ModeStreamUp) {
-		errors.LogInfo(context.Background(), "stream-one mode is not allowed")
-		writer.WriteHeader(http.StatusBadRequest)
+	if len(sessionId) > maxSessionIDLength || strings.Trim(sessionId, charsetBase62+"-._~") != "" {
+		h.rejectRequest(writer, request)
 		return
+	}
+	if seqStr != "" {
+		if _, err := strconv.ParseUint(seqStr, 10, 64); err != nil || sessionId == "" || request.Method != h.config.GetNormalizedUplinkHTTPMethod() || !isModeAllowed(h.config.Mode, ModePacketUp) {
+			h.rejectRequest(writer, request)
+			return
+		}
+	}
+	if sessionId != "" && seqStr == "" && request.Method != http.MethodGet && !isModeAllowed(h.config.Mode, ModeStreamUp) {
+		h.rejectRequest(writer, request)
+		return
+	}
+
+	if sessionId == "" && (request.Method == http.MethodGet || !isModeAllowed(h.config.Mode, ModeStreamOne)) {
+		h.rejectRequest(writer, request)
+		return
+	}
+	h.config.WriteResponseHeader(writer, request.Method, request.Header)
+	h.config.ApplyXPaddingToResponse(writer, h.config.newXPaddingConfig(request.URL.String()))
+	if request.ProtoMajor == 1 && request.Method != http.MethodGet && seqStr == "" {
+		if err := http.NewResponseController(writer).EnableFullDuplex(); err != nil {
+			h.rejectRequest(writer, request)
+			return
+		}
 	}
 
 	var remoteAddr net.Addr
@@ -240,7 +242,7 @@ func (h *requestHandler) ServeHTTP(writer http.ResponseWriter, request *http.Req
 		if seqStr == "" {
 			if !isModeAllowed(h.config.Mode, ModeStreamUp) {
 				errors.LogInfo(context.Background(), "stream-up mode is not allowed")
-				writer.WriteHeader(http.StatusBadRequest)
+				h.rejectRequest(writer, request)
 				return
 			}
 			if useCustomUplink {
@@ -261,10 +263,10 @@ func (h *requestHandler) ServeHTTP(writer http.ResponseWriter, request *http.Req
 				writer.Header().Set("Cache-Control", "no-store")
 				writer.WriteHeader(http.StatusOK)
 				scStreamUpServerSecs := h.config.GetNormalizedScStreamUpServerSecs()
-				if obfsPaddingAccepted && scStreamUpServerSecs.To > 0 {
+				if scStreamUpServerSecs.To > 0 {
 					go func() {
 						for {
-							_, err := httpSC.Write(bytes.Repeat([]byte{'X'}, int(h.config.GetNormalizedXPaddingBytes().rand())))
+							_, err := httpSC.Write([]byte(GeneratePadding(PaddingMethodTokenish, int(h.config.GetNormalizedXPaddingBytes().rand()))))
 							if err != nil {
 								break
 							}
@@ -292,7 +294,7 @@ func (h *requestHandler) ServeHTTP(writer http.ResponseWriter, request *http.Req
 
 		if !isModeAllowed(h.config.Mode, ModePacketUp) {
 			errors.LogInfo(context.Background(), "packet-up mode is not allowed")
-			writer.WriteHeader(http.StatusBadRequest)
+			h.rejectRequest(writer, request)
 			return
 		}
 
@@ -303,7 +305,7 @@ func (h *requestHandler) ServeHTTP(writer http.ResponseWriter, request *http.Req
 		}
 		defer h.pendingRequests.Add(-1)
 		if useCustomUplink && dataPlacement != PlacementBody {
-			writer.WriteHeader(http.StatusBadRequest)
+			h.rejectRequest(writer, request)
 			return
 		}
 		reservation := int64(scMaxEachPostBytes)*4 + int64(h.config.GetNormalizedServerMaxHeaderBytes())*4 + 65536
@@ -331,7 +333,7 @@ func (h *requestHandler) ServeHTTP(writer http.ResponseWriter, request *http.Req
 			headerPayload, err = base64.RawURLEncoding.DecodeString(headerPayloadEncoded)
 			if err != nil {
 				errors.LogInfo(context.Background(), "Invalid base64 in header's payload: ", err.Error())
-				writer.WriteHeader(http.StatusBadRequest)
+				h.rejectRequest(writer, request)
 				return
 			}
 		}
@@ -351,7 +353,7 @@ func (h *requestHandler) ServeHTTP(writer http.ResponseWriter, request *http.Req
 			cookiePayload, err = base64.RawURLEncoding.DecodeString(cookiePayloadEncoded)
 			if err != nil {
 				errors.LogInfo(context.Background(), "Invalid base64 in cookies' payload: ", err.Error())
-				writer.WriteHeader(http.StatusBadRequest)
+				h.rejectRequest(writer, request)
 				return
 			}
 		}
@@ -359,6 +361,7 @@ func (h *requestHandler) ServeHTTP(writer http.ResponseWriter, request *http.Req
 		var bodyPayload []byte
 		if dataPlacement == PlacementAuto || dataPlacement == PlacementBody {
 			var readErr error
+			rawBody := request.Body
 			if useCustomUplink {
 				wireLimit := int64(scMaxEachPostBytes)*4 + 65536
 				if request.ContentLength > wireLimit {
@@ -373,15 +376,24 @@ func (h *requestHandler) ServeHTTP(writer http.ResponseWriter, request *http.Req
 				writer.WriteHeader(http.StatusRequestEntityTooLarge)
 				return
 			}
+			finishBody, readErr := guardPacketBody(writer, request, rawBody, currentSession, h.stopped.Wait())
+			if readErr != nil {
+				h.rejectRequest(writer, request)
+				return
+			}
+			defer finishBody(false)
 			if request.ContentLength > 0 {
 				bodyPayload = make([]byte, request.ContentLength)
 				_, readErr = io.ReadFull(request.Body, bodyPayload)
 			} else {
 				bodyPayload, readErr = buf.ReadAllToBytes(io.LimitReader(request.Body, int64(scMaxEachPostBytes)+1))
 			}
+			if cancelErr := finishBody(readErr == nil && len(bodyPayload) <= scMaxEachPostBytes); readErr == nil {
+				readErr = cancelErr
+			}
 			if readErr != nil {
 				errors.LogInfoInner(context.Background(), readErr, "failed to read body payload")
-				writer.WriteHeader(http.StatusBadRequest)
+				h.rejectRequest(writer, request)
 				return
 			}
 		}
@@ -507,7 +519,7 @@ func (h *requestHandler) ServeHTTP(writer http.ResponseWriter, request *http.Req
 		conn.Close()
 	} else {
 		errors.LogInfo(context.Background(), "unsupported method: ", request.Method)
-		writer.WriteHeader(http.StatusMethodNotAllowed)
+		h.rejectRequest(writer, request)
 	}
 }
 
@@ -685,12 +697,18 @@ func ListenXH(ctx context.Context, address net.Address, port net.Port, streamSet
 		protocols := new(http.Protocols)
 		protocols.SetHTTP1(true)
 		protocols.SetUnencryptedHTTP2(true)
+		http2Config, configErr := l.config.http2Config()
+		if configErr != nil {
+			l.Close()
+			return nil, configErr
+		}
 		l.server = http.Server{
 			Handler:           handler,
 			ReadHeaderTimeout: time.Second * 4,
 			IdleTimeout:       net.ConnIdleTimeout,
 			MaxHeaderBytes:    l.config.GetNormalizedServerMaxHeaderBytes(),
 			Protocols:         protocols,
+			HTTP2:             http2Config,
 		}
 		go func() {
 			if err := l.server.Serve(l.listener); err != nil && !stderrors.Is(err, http.ErrServerClosed) {

@@ -55,6 +55,7 @@ message Config {
   DownlinkPaddingConfig customDownlinkPadding = 30;
   int64 serverMaxBufferedBytes = 31;
   uint32 serverMaxSessions = 32;
+  bytes h2Params = 33;
 }
 
 message DownlinkPaddingConfig {

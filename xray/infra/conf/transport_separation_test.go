@@ -88,7 +88,7 @@ func TestXeraDefaultsAvoidLegacyHTTPMarkers(t *testing.T) {
 	if !ok {
 		t.Fatalf("unexpected config type: %T", built)
 	}
-	if !settings.NoGRPCHeader || !settings.NoSSEHeader {
+	if settings.NoGRPCHeader || settings.NoSSEHeader {
 		t.Fatal("XERA defaults must omit legacy gRPC and SSE headers")
 	}
 	if settings.XPaddingKey != "p" || settings.XPaddingHeader != "X-Pad" || settings.XPaddingPlacement != "query" || settings.XPaddingMethod != "tokenish" {

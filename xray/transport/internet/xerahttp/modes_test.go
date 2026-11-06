@@ -15,7 +15,6 @@ import (
 	"github.com/xtls/xray-core/transport/internet"
 	"github.com/xtls/xray-core/transport/internet/stat"
 	"github.com/xtls/xray-core/transport/internet/tls"
-	"google.golang.org/protobuf/proto"
 )
 
 func TestModesRoundTripAndClose(t *testing.T) {
@@ -31,9 +30,9 @@ func TestModesRoundTripAndClose(t *testing.T) {
 						ProtocolName: "xera-http",
 						ProtocolSettings: &Config{
 							Path: "/modes", Mode: mode,
-							XPaddingObfsMode: padding != "", XPaddingPlacement: padding,
-							XPaddingMethod: string(PaddingMethodTokenish),
-							XPaddingHeader: "X-Response-Token", XPaddingKey: "token",
+							XPaddingPlacement: padding,
+							XPaddingMethod:    string(PaddingMethodTokenish),
+							XPaddingHeader:    "X-Response-Token", XPaddingKey: "token",
 						},
 						SecurityType:     "tls",
 						SecuritySettings: &tls.Config{Certificate: []*tls.Certificate{tls.ParseCertificate(certificate)}, PinnedPeerCertSha256: [][]byte{hash[:]}, NextProtocol: []string{alpn}},
@@ -63,15 +62,9 @@ func TestModesRoundTripAndClose(t *testing.T) {
 						t.Fatal(err)
 					}
 					defer listener.Close()
-					for index := range 12 {
-						clientSettings := settings
-						if (padding == "custom" || padding == "duplex") && index%2 == 1 {
-							config := proto.Clone(settings.ProtocolSettings.(*Config)).(*Config)
-							config.CustomDownlinkPadding = nil
-							clientSettings = &internet.MemoryStreamConfig{ProtocolName: settings.ProtocolName, ProtocolSettings: config, SecurityType: settings.SecurityType, SecuritySettings: settings.SecuritySettings}
-						}
+					for range 12 {
 						ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-						c, err := Dial(ctx, net.TCPDestination(net.LocalHostIP, port), clientSettings)
+						c, err := Dial(ctx, net.TCPDestination(net.LocalHostIP, port), settings)
 						cancel()
 						if err != nil {
 							t.Fatal(err)

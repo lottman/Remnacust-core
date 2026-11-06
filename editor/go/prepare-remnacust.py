@@ -25,7 +25,7 @@ for source in core.rglob('*'):
         shutil.copyfile(source, dest)
 
 module = target / 'go.mod'
-module.write_text(module.read_text().replace('../vendor/olcrtc', '../../../../vendor/olcrtc'))
+module.write_text(module.read_text().replace('../vendor/olcrtc', '../../../../vendor/olcrtc').replace('../vendor/utls', '../../../../vendor/utls'))
 
 # Resolve the validator against the exact same dependency graph, retaining its
 # local source substitution rather than an independently aging Go module.
@@ -33,6 +33,7 @@ editor_module = (core / 'go.mod').read_text(encoding='utf-8')
 editor_module = editor_module.replace('module github.com/xtls/xray-core', 'module github.com/mmmray/xray-online', 1)
 editor_module = editor_module.replace('require (\n', 'require (\n\tgithub.com/xtls/xray-core v0.0.0\n', 1)
 editor_module = editor_module.replace('../vendor/olcrtc', '../../vendor/olcrtc')
+editor_module = editor_module.replace('../vendor/utls', '../../vendor/utls')
 editor_module += '\nreplace github.com/xtls/xray-core => ./assets/xray-remnacust\n'
 (editor / 'go.mod').write_text(editor_module, encoding='utf-8', newline='\n')
 shutil.copyfile(core / 'go.sum', editor / 'go.sum')
@@ -78,7 +79,7 @@ p.write_text(s, encoding='utf-8', newline='\n')
 for folder in ['proxy/masque', 'proxy/olcrtc', 'transport/internet/masque',
                'transport/internet/xdrive', 'transport/internet/xerahttp', 'proxy/shadowsocks_2022']:
     for p in (target / folder).glob('*.go'):
-        if p.name.endswith(('.pb.go', '_test.go')) or p.name in {'account.go', 'config.go', 'common.go', 'mode.go', 'xpadding.go', 'downlink_padding.go', 'uplink_padding.go', 'tun_default.go', 'xerahttp.go', 'validate.go', 'cipher.go', 'methods.go'}:
+        if p.name.endswith(('.pb.go', '_test.go')) or p.name in {'account.go', 'config.go', 'common.go', 'mode.go', 'xpadding.go', 'downlink_padding.go', 'uplink_padding.go', 'http2.go', 'metadata.go', 'tun_default.go', 'xerahttp.go', 'validate.go', 'cipher.go', 'methods.go'}:
             continue
         s = p.read_text(encoding='utf-8')
         if s.startswith('//go:build'):

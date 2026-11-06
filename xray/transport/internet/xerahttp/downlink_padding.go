@@ -3,8 +3,10 @@ package xerahttp
 import (
 	"bufio"
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/binary"
 	"io"
+	"net/http"
 	"strings"
 	"sync"
 
@@ -35,6 +37,11 @@ func (p *DownlinkPaddingConfig) wireValue() string {
 		return "2." + p.Token
 	}
 	return "1." + p.Token
+}
+
+func (p *DownlinkPaddingConfig) matchesHeader(header http.Header) bool {
+	values := header.Values(p.Header)
+	return len(values) == 1 && subtle.ConstantTimeCompare([]byte(values[0]), []byte(p.wireValue())) == 1
 }
 
 func (p *DownlinkPaddingConfig) Validate() error {

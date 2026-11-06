@@ -476,15 +476,21 @@ func (s *quotaStore) reconcile(policy hostPolicyDocument, now time.Time) error {
 				return errors.New("invalid quota reserve binding")
 			}
 			ceiling, err := strconv.ParseInt(grant.Ceiling, 10, 64)
-			if err != nil || ceiling < 0 || grant.ExpiresAt <= s.retiredBefore {
+			if err != nil || ceiling < 0 || grant.ExpiresAt <= 0 {
 				return errors.New("invalid quota ceiling")
 			}
 			active[grant.ID] = true
 			previous, exists := s.entries[grant.ID]
+			if exists && (previous.Owner != owner || previous.Group != key || ceiling < previous.Ceiling || grant.ExpiresAt != previous.ExpiresAt || quotaScale(previous.Scale) != quotaScale(group.MultiplierScale)) {
+				return errors.New("mismatched quota reserve cannot be replayed")
+			}
+			if grant.ExpiresAt <= s.retiredBefore {
+				continue
+			}
 			if (grant.RegistrationRequired && (policy.QuotaRegistrations != quotaRegistrationCapability || !exists || !previous.Prepared)) || (previous.Prepared && !grant.RegistrationRequired) {
 				return errors.New("quota activation requires a prior durable registration")
 			}
-			if exists && (previous.Closed || previous.Owner != owner || previous.Group != key || ceiling < previous.Ceiling || grant.ExpiresAt != previous.ExpiresAt || quotaScale(previous.Scale) != quotaScale(group.MultiplierScale)) {
+			if exists && previous.Closed {
 				return errors.New("closed or mismatched quota reserve cannot be replayed")
 			}
 			if !exists {

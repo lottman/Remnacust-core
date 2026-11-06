@@ -36,7 +36,7 @@ func TestUploadAdmissionPrecedesBodyRead(t *testing.T) {
 		}
 		body := &observedUploadBody{ReadCloser: request.Body}
 		request.Body = body
-		response := httptest.NewRecorder()
+		response := newPacketDeadlineRecorder()
 		h.ServeHTTP(response, request)
 		if limit == 1 {
 			if response.Code != http.StatusServiceUnavailable || body.reads != 0 || h.budget.used.Load() != 0 {

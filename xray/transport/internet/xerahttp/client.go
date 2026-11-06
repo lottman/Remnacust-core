@@ -50,6 +50,9 @@ func (c *DefaultDialerClient) OpenStream(ctx context.Context, url string, sessio
 	var notifyOnce sync.Once
 	notify := func(result dialResult) { notifyOnce.Do(func() { connected <- result }) }
 	requestCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+	if uploadOnly {
+		requestCtx = context.WithValue(requestCtx, browserH2UploadKey{}, true)
+	}
 	requestCtx = httptrace.WithClientTrace(requestCtx, &httptrace.ClientTrace{
 		GotConn: func(info httptrace.GotConnInfo) {
 			notify(dialResult{remote: info.Conn.RemoteAddr(), local: info.Conn.LocalAddr()})
@@ -75,7 +78,7 @@ func (c *DefaultDialerClient) OpenStream(ctx context.Context, url string, sessio
 	}
 	c.transportConfig.FillStreamRequest(req, sessionId, "")
 	padding := c.transportConfig.CustomDownlinkPadding
-	if padding != nil && (!uploadOnly || padding.Uplink) {
+	if padding != nil {
 		req.Header.Set(padding.Header, padding.wireValue())
 	}
 	w := &WaitReadCloser{Wait: make(chan struct{}), cancel: cancel}
@@ -99,7 +102,7 @@ func (c *DefaultDialerClient) OpenStream(ctx context.Context, url string, sessio
 			return
 		}
 		if uploadOnly {
-			if padding != nil && padding.Uplink && resp.Header.Get(padding.Header) != padding.wireValue() {
+			if padding != nil && !padding.matchesHeader(resp.Header) {
 				resp.Body.Close()
 				common.Close(body)
 				w.Fail(errors.New("server did not confirm custom uplink padding"))
@@ -116,7 +119,7 @@ func (c *DefaultDialerClient) OpenStream(ctx context.Context, url string, sessio
 			return
 		}
 		if padding != nil {
-			if resp.Header.Get(padding.Header) != padding.wireValue() {
+			if !padding.matchesHeader(resp.Header) {
 				resp.Body.Close()
 				common.Close(body)
 				w.Fail(errors.New("server did not confirm custom downlink padding"))
@@ -143,6 +146,7 @@ func (c *DefaultDialerClient) OpenStream(ctx context.Context, url string, sessio
 	}
 }
 func (c *DefaultDialerClient) PostPacket(ctx context.Context, url string, sessionId string, seqStr string, payload buf.MultiBuffer) error {
+	ctx = context.WithValue(ctx, browserH2UploadKey{}, true)
 	padding := c.transportConfig.CustomDownlinkPadding
 	if padding != nil && padding.Uplink {
 		if c.transportConfig.GetNormalizedUplinkDataPlacement() != PlacementBody {
@@ -163,8 +167,10 @@ func (c *DefaultDialerClient) PostPacket(ctx context.Context, url string, sessio
 	if err := c.transportConfig.FillPacketRequest(req, sessionId, seqStr, payload); err != nil {
 		return err
 	}
-	if padding != nil && padding.Uplink {
+	if padding != nil {
 		req.Header.Set(padding.Header, padding.wireValue())
+	}
+	if padding != nil && padding.Uplink {
 		allowance, _ := ctx.Value(uploadPaddingKey{}).(*sharedPaddingAllowance)
 		encoder, length := planPaddedPacket(req.Body, padding, allowance, req.ContentLength)
 		req.Body = encoder
@@ -190,8 +196,8 @@ func (c *DefaultDialerClient) PostPacket(ctx context.Context, url string, sessio
 	if resp.StatusCode != http.StatusOK {
 		return errors.New("bad status code:", resp.Status)
 	}
-	if padding != nil && padding.Uplink && resp.Header.Get(padding.Header) != padding.wireValue() {
-		return errors.New("server did not confirm custom uplink padding")
+	if padding != nil && !padding.matchesHeader(resp.Header) {
+		return errors.New("server did not confirm custom padding")
 	}
 	_, err = io.Copy(io.Discard, resp.Body)
 	return err
