@@ -4,21 +4,21 @@
 
 An Xray-core fork for Remnacust: client connections, routing, runtime configuration updates and host/device policies. The repository also contains the panel editor's schema and browser validator.
 
-## Stable components
+## Current components
 
-| Component | Published version |
+| Component | Version |
 | --- | --- |
-| Core | [1.1.13](https://github.com/lottman/Remnacust-core/releases/tag/v1.1.13) |
+| Core | [1.1.14](https://github.com/lottman/Remnacust-core/releases/tag/v1.1.14) |
 | Xray base | [v26.10.31](https://github.com/XTLS/Xray-core/releases/tag/v26.10.31) |
-| Node | [1.1.22](https://github.com/lottman/Remnacust-node/releases/tag/v1.1.22) |
-| Panel and subscription page | [1.1.7.97](https://github.com/lottman/Remnacust-panel/releases/tag/v1.1.7.97) |
-| Installer | [1.2.136](https://github.com/lottman/Remnacust-installer/releases/tag/v1.2.136) |
+| Node | [1.1.23](https://github.com/lottman/Remnacust-node/releases/tag/v1.1.23) |
+| Panel and subscription page | [1.1.7.98](https://github.com/lottman/Remnacust-panel/releases/tag/v1.1.7.98) |
+| Installer | [1.2.137](https://github.com/lottman/Remnacust-installer/releases/tag/v1.2.137) |
 
-The base is published official Xray v26.10.31, commit `a4a3dff5b20c2faae567b742c172c7b95e75c083`. Provenance: [REMNACUST-UPSTREAM.json](xray/REMNACUST-UPSTREAM.json); see [Core 1.1.13 changes](docs/RELEASE-1.1.13.md). New source in the branch does not mean the published binary has been updated.
+The base is published official Xray v26.10.31, commit `a4a3dff5b20c2faae567b742c172c7b95e75c083`. Provenance: [REMNACUST-UPSTREAM.json](xray/REMNACUST-UPSTREAM.json); see [Core 1.1.14 changes](docs/RELEASE-1.1.14.md). New source in the branch does not mean the published binary has been updated.
 
 ## Installation and updates
 
-For a VPS, use the ready components described in the [Node guide](https://github.com/lottman/Remnacust-node). Stable Installer 1.2.136 supports Ubuntu 22.04/24.04/26.04 LTS, Linux amd64/arm64. Debian 12/13 support has been added locally but is not yet published. The starting node baseline is 1 CPU and 1 GiB RAM without a capacity guarantee; Node.js and Go are not needed on the host.
+For a VPS, use the ready components described in the [Node guide](https://github.com/lottman/Remnacust-node). Installer 1.2.137 supports Ubuntu 22.04/24.04/26.04 LTS and Debian 12/13, Linux amd64/arm64. The starting node baseline is 1 CPU and 1 GiB RAM without a capacity guarantee; Node.js and Go are not needed on the host.
 
 Core releases include Linux amd64/arm64 binaries and `SHA256SUMS`. For a managed node, select a verified core through the panel or `sudo remnacust manage-node`; do not manually replace a running binary. Updating the panel does not update remote nodes. `sudo remnacust upgrade-node` updates the agent image with its bundled Core, but a separately selected managed core may remain pinned. Check the active version and mode.
 
@@ -41,9 +41,9 @@ Existing connections and policies can operate without the panel while access rig
 
 A day of offline operation requires enough validity time and local credit for traffic and recovery. Restart requires compatible Node/Core versions and persisted configuration, credentials and journals. There is no 24-hour guarantee for every older core or after state loss. [Offline operation requirements](https://github.com/lottman/Remnacust-panel/blob/main/docs/NODE-AUTONOMY.md).
 
-## Not yet published
+## Core 1.1.14 changes
 
-The local branch contains fixes for MUX session and quota lease ownership, a 300-second read limit for unfinished Xera packet-up bodies with cancellation cleanup (without a general timeout for streaming/long polling), certificate decompression fixes on a compatible uTLS base, and Brotli/compress updates. The new Xera profile requires coordinated client and server updates. Quota recovery after some grants expire requires coordinated new Node/Core builds. **These changes are not yet included in published Core 1.1.13**; a local build does not update releases or installed images.
+This release fixes MUX session and quota lease ownership, quota recovery after some grants expire, and certificate decompression on a compatible uTLS base, and updates Brotli/compress. Unfinished Xera packet-up body reads are limited to 300 seconds with cancellation cleanup, without a general timeout for streaming/long polling. The new Xera profile requires coordinated client and server updates. Complete offline restart requires Node 1.1.23 and Core 1.1.14 with preserved private state. Tests cover 24 virtual hours with recovery and quota exhaustion; this is not a real day-long network run. [Release changes](docs/RELEASE-1.1.14.md).
 
 ## Build and validation
 
