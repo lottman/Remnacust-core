@@ -10,15 +10,15 @@ An Xray-core fork for Remnacust: client connections, routing, runtime configurat
 | --- | --- |
 | Core | [1.1.16](https://github.com/lottman/Remnacust-core/releases/tag/v1.1.16) |
 | Xray base | [v26.10.31](https://github.com/XTLS/Xray-core/releases/tag/v26.10.31) |
-| Node | [1.1.25](https://github.com/lottman/Remnacust-node/releases/tag/v1.1.25) |
-| Panel and subscription page | [1.1.7.100](https://github.com/lottman/Remnacust-panel/releases/tag/v1.1.7.100) |
-| Installer | [1.2.139](https://github.com/lottman/Remnacust-installer/releases/tag/v1.2.139) |
+| Node | [1.1.26](https://github.com/lottman/Remnacust-node/releases/tag/v1.1.26) |
+| Panel and subscription page | [1.1.7.101](https://github.com/lottman/Remnacust-panel/releases/tag/v1.1.7.101) |
+| Installer | [1.2.140](https://github.com/lottman/Remnacust-installer/releases/tag/v1.2.140) |
 
 The base is published official Xray v26.10.31, commit `a4a3dff5b20c2faae567b742c172c7b95e75c083`. Provenance: [REMNACUST-UPSTREAM.json](xray/REMNACUST-UPSTREAM.json); see [Core 1.1.16 changes](docs/releases/1.1.16.md). New source in the branch does not mean the published binary has been updated.
 
 ## Installation and updates
 
-For a VPS, use the ready components described in the [Node guide](https://github.com/lottman/Remnacust-node). Installer 1.2.139 supports Ubuntu 22.04/24.04/26.04 LTS and Debian 12/13, Linux amd64/arm64. The starting node baseline is 1 CPU and 1 GiB RAM without a capacity guarantee; Node.js and Go are not needed on the host.
+For a VPS, use the ready components described in the [Node guide](https://github.com/lottman/Remnacust-node). Installer 1.2.140 supports Ubuntu 22.04/24.04/26.04 LTS and Debian 12/13, Linux amd64/arm64. The starting node baseline is 1 CPU and 1 GiB RAM without a capacity guarantee; Node.js and Go are not needed on the host.
 
 Core releases include Linux amd64/arm64 binaries and `SHA256SUMS`. For a managed node, select a verified core through the panel or `sudo remnacust manage-node`; do not manually replace a running binary. Updating the panel does not update remote nodes. `sudo remnacust upgrade-node` updates the agent image with its bundled Core, but a separately selected managed core may remain pinned. Check the active version and mode.
 
@@ -26,7 +26,7 @@ Preserve `/opt/remnacust/node/.env`, `SECRET_KEY`, Compose and all private state
 
 ## Features and compatibility
 
-Node 1.1.25 contains two separate binaries: custom Core 1.1.16 and stock Xray v26.10.31. The panel's global mode defaults to custom. Default does not support Remnacust extensions; changing modes checks saved policies and quotas without deleting journals or silently removing limits. The editor uses separate custom and pristine upstream WASM/schema assets; browser validation does not prove a native connection works.
+Node 1.1.26 contains two separate binaries: custom Core 1.1.16 and stock Xray v26.10.31. The panel's global mode defaults to custom. Default does not support Remnacust extensions; changing modes checks saved policies and quotas without deleting journals or silently removing limits. The editor uses separate custom and pristine upstream WASM/schema assets; browser validation does not prove a native connection works.
 
 - Xera HTTP: `network: "xera-http"` and `xeraHttpSettings`; compatible client and server cores are required. Standard XHTTP is a separate transport.
 - Host/tag policies, quotas and user/device speed limits. Additional connections do not increase the allocated budget.
