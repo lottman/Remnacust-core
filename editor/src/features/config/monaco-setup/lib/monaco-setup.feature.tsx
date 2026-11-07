@@ -1,14 +1,14 @@
-import { Monaco } from '@monaco-editor/react'
+import { jsonDefaults } from 'monaco-editor/languages/features/json/register'
 import { consola } from 'consola/browser'
 import axios from 'axios'
 
 export const MonacoSetupFeature = {
-    setup: async (monaco: Monaco) => {
+    setup: async () => {
         try {
             const response = await axios.get('xray.schema.json')
             const schema = await response.data
 
-            monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
+            jsonDefaults.setDiagnosticsOptions({
                 allowComments: false,
                 enableSchemaRequest: true,
                 schemaRequest: 'warning',

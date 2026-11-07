@@ -1,5 +1,5 @@
 import { forwardRef, ReactNode, useEffect } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion } from 'motion/react'
 import { nprogress } from '@mantine/nprogress'
 import { Box, BoxProps } from '@mantine/core'
 

@@ -1,11 +1,11 @@
 import { Box, Code, Paper, Title, useMantineColorScheme } from '@mantine/core'
-import { monacoTheme } from '@/shared/lib/monaco-theme'
-import Editor, { Monaco } from '@monaco-editor/react'
-import { useEffect, useRef, useState } from 'react'
+import { Editor, type Monaco } from '@monaco-editor/react'
+import { useRef, useState } from 'react'
 
 import { ConfigEditorActionsFeature } from '@features/config/config-editor-actions/ui'
 import { ConfigValidationFeature } from '@features/config/config-validation/ui'
 import { MonacoSetupFeature } from '@features/config/monaco-setup/lib'
+import { monacoTheme } from '@/shared/lib/monaco-theme'
 
 import { Props } from './interfaces'
 
@@ -18,11 +18,6 @@ export function ConfigEditorWidget(props: Props) {
 
     const editorRef = useRef<unknown>(null)
     const monacoRef = useRef<unknown>(null)
-
-    useEffect(() => {
-        if (!monacoRef.current) return
-        MonacoSetupFeature.setup(monacoRef.current as Monaco)
-    }, [monacoRef.current])
 
     const handleEditorDidMount = (monaco: Monaco) => {
         monaco.editor.defineTheme('GithubDark', {
@@ -50,6 +45,7 @@ export function ConfigEditorWidget(props: Props) {
                     onMount={(editor, monaco) => {
                         editorRef.current = editor
                         monacoRef.current = monaco
+                        void MonacoSetupFeature.setup()
                         ConfigValidationFeature.validate(
                             editorRef,
                             monacoRef,
@@ -63,7 +59,7 @@ export function ConfigEditorWidget(props: Props) {
                         autoClosingQuotes: 'always',
                         autoIndent: 'full',
                         automaticLayout: true,
-                        bracketPairColorization: true,
+                        bracketPairColorization: { enabled: true },
                         detectIndentation: true,
                         folding: true,
                         foldingStrategy: 'indentation',

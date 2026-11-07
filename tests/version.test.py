@@ -12,6 +12,10 @@ actual = '.'.join(re.search(r'Version_' + axis + r'\s+byte\s*=\s*(\d+)', source)
 assert actual == expected, 'Runtime version differs from VERSION'
 metadata = json.loads((root / 'xray/REMNACUST-UPSTREAM.json').read_text())
 assert metadata['version'] == expected
+modules = (root / 'xray/go.mod').read_text()
+for dependency in metadata.get('dependencySecurityUpdates', []):
+    declared = re.search(r'^\s*' + re.escape(dependency['module']) + r'\s+(\S+)\s*$', modules, re.MULTILINE)
+    assert declared and declared.group(1) == dependency['version'], 'Dependency provenance differs from go.mod: ' + dependency['module']
 output = subprocess.check_output([sys.argv[1], 'version'], text=True)
 assert output.startswith('Xray ' + expected + ' '), 'Built executable has the wrong version'
 assert f"Based on Xray-core {metadata['upstreamVersion']}." in output, 'Executable banner differs from the pinned official release'

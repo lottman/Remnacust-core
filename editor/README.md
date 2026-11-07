@@ -2,11 +2,13 @@
 
 # Редактор конфигураций Remnacust
 
-Валидатор и схема собираются из текущего **Remnacust Core 1.1.15 / Xray v26.10.31**. После изменения Core пересоберите и поставляйте их вместе; обновление версии исходников не заменяет прежний WASM панели. Production-интерфейс редактора находится в [Remnacust-panel](https://github.com/lottman/Remnacust-panel/tree/main/panel/frontend); этот каталог содержит Go/WASM-сборку и исходный самостоятельный пример Monaco.
+Валидатор и схема собираются из текущего **Remnacust Core 1.1.16 / Xray v26.10.31**. После изменения Core пересоберите и поставляйте их вместе; обновление версии исходников не заменяет прежний WASM панели. Production-интерфейс редактора находится в [Remnacust-panel](https://github.com/lottman/Remnacust-panel/tree/main/panel/frontend); этот каталог содержит Go/WASM-сборку и исходный самостоятельный пример Monaco.
 
 ## Обновление WASM и схемы
 
-Нужны Go 1.27.3, Python 3, Node.js 24 и зависимости frontend панели. Клонируйте панель рядом с Core, затем из корня этого репозитория:
+Панель выбирает custom или default assets по глобальному режиму. `go/build-remnacust.sh` готовит custom Core; `python3 go/build-default.py` из этого каталога собирает `default.wasm`, `xray.default.schema.json` и provenance из закреплённого pristine upstream v26.10.31. Эти два набора ресурсов не взаимозаменяемы; смена режима редактора требует перезагрузки страницы.
+
+Нужны Go 1.27.3, Python 3, Node.js 26.13 LTS и зависимости frontend панели. Клонируйте панель рядом с Core, затем из корня этого репозитория:
 
 ```bash
 bash editor/go/build-remnacust.sh

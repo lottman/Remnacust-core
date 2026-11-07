@@ -8,23 +8,25 @@ An Xray-core fork for Remnacust: client connections, routing, runtime configurat
 
 | Component | Version |
 | --- | --- |
-| Core | [1.1.15](https://github.com/lottman/Remnacust-core/releases/tag/v1.1.15) |
+| Core | [1.1.16](https://github.com/lottman/Remnacust-core/releases/tag/v1.1.16) |
 | Xray base | [v26.10.31](https://github.com/XTLS/Xray-core/releases/tag/v26.10.31) |
-| Node | [1.1.24](https://github.com/lottman/Remnacust-node/releases/tag/v1.1.24) |
-| Panel and subscription page | [1.1.7.99](https://github.com/lottman/Remnacust-panel/releases/tag/v1.1.7.99) |
-| Installer | [1.2.138](https://github.com/lottman/Remnacust-installer/releases/tag/v1.2.138) |
+| Node | [1.1.25](https://github.com/lottman/Remnacust-node/releases/tag/v1.1.25) |
+| Panel and subscription page | [1.1.7.100](https://github.com/lottman/Remnacust-panel/releases/tag/v1.1.7.100) |
+| Installer | [1.2.139](https://github.com/lottman/Remnacust-installer/releases/tag/v1.2.139) |
 
-The base is published official Xray v26.10.31, commit `a4a3dff5b20c2faae567b742c172c7b95e75c083`. Provenance: [REMNACUST-UPSTREAM.json](xray/REMNACUST-UPSTREAM.json); see [Core 1.1.15 changes](docs/RELEASE-1.1.15.md). New source in the branch does not mean the published binary has been updated.
+The base is published official Xray v26.10.31, commit `a4a3dff5b20c2faae567b742c172c7b95e75c083`. Provenance: [REMNACUST-UPSTREAM.json](xray/REMNACUST-UPSTREAM.json); see [Core 1.1.16 changes](docs/releases/1.1.16.md). New source in the branch does not mean the published binary has been updated.
 
 ## Installation and updates
 
-For a VPS, use the ready components described in the [Node guide](https://github.com/lottman/Remnacust-node). Installer 1.2.138 supports Ubuntu 22.04/24.04/26.04 LTS and Debian 12/13, Linux amd64/arm64. The starting node baseline is 1 CPU and 1 GiB RAM without a capacity guarantee; Node.js and Go are not needed on the host.
+For a VPS, use the ready components described in the [Node guide](https://github.com/lottman/Remnacust-node). Installer 1.2.139 supports Ubuntu 22.04/24.04/26.04 LTS and Debian 12/13, Linux amd64/arm64. The starting node baseline is 1 CPU and 1 GiB RAM without a capacity guarantee; Node.js and Go are not needed on the host.
 
 Core releases include Linux amd64/arm64 binaries and `SHA256SUMS`. For a managed node, select a verified core through the panel or `sudo remnacust manage-node`; do not manually replace a running binary. Updating the panel does not update remote nodes. `sudo remnacust upgrade-node` updates the agent image with its bundled Core, but a separately selected managed core may remain pinned. Check the active version and mode.
 
 Preserve `/opt/remnacust/node/.env`, `SECRET_KEY`, Compose and all private state: `/var/lib/remnacust/run`, `/var/lib/remnanode`, `/var/lib/remnawave/core-manager`. The Installer persists these in directories beside Compose; paths are listed in `/opt/remnacust/FILES.txt`. Stop older manual deployments without mounts and preserve state with ownership and permissions before recreation. Do not hide the only copy behind empty mounts or delete quota journals to force a downgrade.
 
 ## Features and compatibility
+
+Node 1.1.25 contains two separate binaries: custom Core 1.1.16 and stock Xray v26.10.31. The panel's global mode defaults to custom. Default does not support Remnacust extensions; changing modes checks saved policies and quotas without deleting journals or silently removing limits. The editor uses separate custom and pristine upstream WASM/schema assets; browser validation does not prove a native connection works.
 
 - Xera HTTP: `network: "xera-http"` and `xeraHttpSettings`; compatible client and server cores are required. Standard XHTTP is a separate transport.
 - Host/tag policies, quotas and user/device speed limits. Additional connections do not increase the allocated budget.
@@ -41,9 +43,9 @@ Existing connections and policies can operate without the panel while access rig
 
 A day of offline operation requires enough validity time and local credit for traffic and recovery. Restart requires compatible Node/Core versions and persisted configuration, credentials and journals. There is no 24-hour guarantee for every older core or after state loss. [Offline operation requirements](https://github.com/lottman/Remnacust-panel/blob/main/docs/NODE-AUTONOMY.md).
 
-## Core 1.1.15 changes
+## Core 1.1.16 changes
 
-The Linux process display name is now `rc-core`; the `rw-core` executable filename, arguments, paths and core-manager contracts remain compatible. The MUX, Xera, uTLS and offline recovery fixes from 1.1.14 are retained. A day of offline operation still requires sufficient validity time and local credit; virtual-day tests are not a real day-long network run. [Release changes](docs/RELEASE-1.1.15.md).
+Updates stable Go dependencies and the standalone editor to Node.js 26.13 LTS, React 19 and Mantine 9; Monaco uses verified DOMPurify. Adds a separate pristine upstream browser validator build for default mode. Custom transports, patched uTLS/olcRTC and offline enforcement remain intact. [Release changes](docs/releases/1.1.16.md).
 
 ## Build and validation
 
@@ -72,7 +74,7 @@ Run network checks in an isolated Linux environment. [Build guide](docs/BUILDING
 
 ## Panel editor
 
-The schema and WASM use the same configuration builders as native Core. Editor builds require Go 1.27.3, Node.js 24, Python 3 and the panel frontend dependencies; these are development tools rather than VPS requirements. An adjacent panel checkout is detected automatically; set `REMNACUST_PANEL_SOURCE` for another location.
+The schema and WASM use the same configuration builders as native Core. Editor builds require Go 1.27.3, Node.js 26.13 LTS, Python 3 and the panel frontend dependencies; these are development tools rather than VPS requirements. An adjacent panel checkout is detected automatically; set `REMNACUST_PANEL_SOURCE` for another location.
 
 From the repository root:
 

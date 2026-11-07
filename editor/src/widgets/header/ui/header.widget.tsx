@@ -1,6 +1,7 @@
 import { ActionIcon, Group, Text, Title } from '@mantine/core'
-import { StickyHeader } from '@/shared/ui/sticky-header'
 import { PiGithubLogo, PiStar } from 'react-icons/pi'
+
+import { StickyHeader } from '@/shared/ui/sticky-header'
 
 import classes from './header.module.css'
 

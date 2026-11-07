@@ -20,7 +20,7 @@
     "legacy XDNS name/type/settings.addr",
     "legacy XDRIVE outbound segment announcements"
   ],
-  "version": "1.1.15",
+  "version": "1.1.16",
   "upstreamPatches": [],
   "checkedAt": "2026-11-01T18:12:46.390111+00:00",
   "pendingRelease": false,
@@ -29,9 +29,9 @@
   "dependencySecurityUpdates": [
     {
       "module": "golang.org/x/net",
-      "previousVersion": "v0.59.0",
-      "version": "v0.60.0",
-      "source": "https://go.googlesource.com/net/+/refs/tags/v0.60.0",
+      "previousVersion": "v0.61.0",
+      "version": "v0.62.0",
+      "source": "https://go.googlesource.com/net/+/refs/tags/v0.62.0",
       "reports": [
         "GO-2026-6617",
         "GO-2026-6612",
@@ -39,6 +39,12 @@
         "GO-2026-6610",
         "GO-2026-6603"
       ]
+    },
+    {
+      "module": "google.golang.org/grpc",
+      "previousVersion": "v1.85.0-dev.0.20260825072537-93e31b48545e",
+      "version": "v1.85.0",
+      "source": "https://github.com/grpc/grpc-go/releases/tag/v1.85.0"
     },
     {
       "module": "golang.org/x/crypto/x509roots/fallback",

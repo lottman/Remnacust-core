@@ -1,7 +1,7 @@
-import { fetchWithProgress } from '@/shared/utils/fetch-with-progress'
 import { useEffect, useState } from 'react'
 import { consola } from 'consola/browser'
 
+import { fetchWithProgress } from '@/shared/utils/fetch-with-progress'
 import { LoadingScreen } from '@/shared/ui/loading-screen'
 import { DEFAULT_CONFIG } from '@/shared/constants'
 
