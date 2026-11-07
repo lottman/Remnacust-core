@@ -12,13 +12,13 @@ An Xray-core fork for Remnacust: client connections, routing, runtime configurat
 | Xray base | [v26.10.31](https://github.com/XTLS/Xray-core/releases/tag/v26.10.31) |
 | Node | [1.1.26](https://github.com/lottman/Remnacust-node/releases/tag/v1.1.26) |
 | Panel and subscription page | [1.1.7.101](https://github.com/lottman/Remnacust-panel/releases/tag/v1.1.7.101) |
-| Installer | [1.2.140](https://github.com/lottman/Remnacust-installer/releases/tag/v1.2.140) |
+| Installer | [1.2.141](https://github.com/lottman/Remnacust-installer/releases/tag/v1.2.141) |
 
 The base is published official Xray v26.10.31, commit `a4a3dff5b20c2faae567b742c172c7b95e75c083`. Provenance: [REMNACUST-UPSTREAM.json](xray/REMNACUST-UPSTREAM.json); see [Core 1.1.16 changes](docs/releases/1.1.16.md). New source in the branch does not mean the published binary has been updated.
 
 ## Installation and updates
 
-For a VPS, use the ready components described in the [Node guide](https://github.com/lottman/Remnacust-node). Installer 1.2.140 supports Ubuntu 22.04/24.04/26.04 LTS and Debian 12/13, Linux amd64/arm64. The starting node baseline is 1 CPU and 1 GiB RAM without a capacity guarantee; Node.js and Go are not needed on the host.
+For a VPS, use the ready components described in the [Node guide](https://github.com/lottman/Remnacust-node). Installer 1.2.141 supports Ubuntu 22.04/24.04/26.04 LTS and Debian 12/13, Linux amd64/arm64. The starting node baseline is 1 CPU and 1 GiB RAM without a capacity guarantee; Node.js and Go are not needed on the host.
 
 Core releases include Linux amd64/arm64 binaries and `SHA256SUMS`. For a managed node, select a verified core through the panel or `sudo remnacust manage-node`; do not manually replace a running binary. Updating the panel does not update remote nodes. `sudo remnacust upgrade-node` updates the agent image with its bundled Core, but a separately selected managed core may remain pinned. Check the active version and mode.
 
