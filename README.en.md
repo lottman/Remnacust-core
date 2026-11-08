@@ -9,7 +9,7 @@ An Xray-core fork for Remnacust: client connections, routing, runtime configurat
 Download the latest stable installer and open its interactive menu:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/lottman/Remnacust-installer/main/bootstrap.sh) @ install
+bash <(curl -fsSL https://raw.githubusercontent.com/lottman/Remnacust-installer/main/Install.sh) @ install
 ```
 
 ## Current components

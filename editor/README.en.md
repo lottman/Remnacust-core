@@ -9,7 +9,7 @@ The validator and schema are built from the current **Remnacust Core 1.1.16 / Xr
 Download the latest stable installer and open its interactive menu:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/lottman/Remnacust-installer/main/bootstrap.sh) @ install
+bash <(curl -fsSL https://raw.githubusercontent.com/lottman/Remnacust-installer/main/Install.sh) @ install
 ```
 
 ## Updating WASM and the schema
