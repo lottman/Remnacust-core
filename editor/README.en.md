@@ -4,6 +4,14 @@
 
 The validator and schema are built from the current **Remnacust Core 1.1.16 / Xray v26.10.31**. Rebuild and ship them together after changing Core; updating the source version does not replace the panel's previous WASM. The production editor interface lives in [Remnacust-panel](https://github.com/lottman/Remnacust-panel/tree/main/panel/frontend). This directory contains the Go/WASM build and standalone Monaco example.
 
+## Install ready components
+
+Download the latest stable installer and open its interactive menu:
+
+```bash
+curl -fsSLo installer.sh https://github.com/lottman/Remnacust-installer/releases/latest/download/installer.sh && sudo bash installer.sh
+```
+
 ## Updating WASM and the schema
 
 The panel selects custom or default assets from its global mode. `go/build-remnacust.sh` prepares custom Core; `python3 go/build-default.py` from this directory builds `default.wasm`, `xray.default.schema.json` and provenance from pinned pristine upstream v26.10.31. The two asset sets are not interchangeable; switching editor mode requires a page reload.

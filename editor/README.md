@@ -4,6 +4,14 @@
 
 Валидатор и схема собираются из текущего **Remnacust Core 1.1.16 / Xray v26.10.31**. После изменения Core пересоберите и поставляйте их вместе; обновление версии исходников не заменяет прежний WASM панели. Production-интерфейс редактора находится в [Remnacust-panel](https://github.com/lottman/Remnacust-panel/tree/main/panel/frontend); этот каталог содержит Go/WASM-сборку и исходный самостоятельный пример Monaco.
 
+## Установка готового комплекта
+
+Скачать последний стабильный установщик и открыть его интерактивное меню:
+
+```bash
+curl -fsSLo installer.sh https://github.com/lottman/Remnacust-installer/releases/latest/download/installer.sh && sudo bash installer.sh
+```
+
 ## Обновление WASM и схемы
 
 Панель выбирает custom или default assets по глобальному режиму. `go/build-remnacust.sh` готовит custom Core; `python3 go/build-default.py` из этого каталога собирает `default.wasm`, `xray.default.schema.json` и provenance из закреплённого pristine upstream v26.10.31. Эти два набора ресурсов не взаимозаменяемы; смена режима редактора требует перезагрузки страницы.
