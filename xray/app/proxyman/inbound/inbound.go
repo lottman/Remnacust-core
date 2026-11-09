@@ -51,7 +51,9 @@ func (m *Manager) AddHandler(ctx context.Context, handler inbound.Handler) error
 
 	if m.running {
 		if err := handler.Start(); err != nil {
-			_ = handler.Close()
+			if closeErr := handler.Close(); closeErr != nil {
+				errors.LogWarningInner(ctx, closeErr, "failed to close handler ", tag)
+			}
 			return err
 		}
 	}

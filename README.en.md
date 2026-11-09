@@ -16,13 +16,13 @@ bash <(curl -fsSL https://raw.githubusercontent.com/lottman/Remnacust-installer/
 
 | Component | Version |
 | --- | --- |
-| Core | [1.1.16](https://github.com/lottman/Remnacust-core/releases/tag/v1.1.16) |
-| Xray base | [v26.10.31](https://github.com/XTLS/Xray-core/releases/tag/v26.10.31) |
+| Core | [1.1.17](https://github.com/lottman/Remnacust-core/releases/tag/v1.1.17) |
+| Xray base | [v26.11.9](https://github.com/XTLS/Xray-core/releases/tag/v26.11.9) |
 | Node | [1.1.26](https://github.com/lottman/Remnacust-node/releases/tag/v1.1.26) |
 | Panel and subscription page | [1.1.7.100](https://github.com/lottman/Remnacust-panel/releases/tag/v1.1.7.100) |
 | Installer | [1.2.144](https://github.com/lottman/Remnacust-installer/releases/tag/v1.2.144) |
 
-The base is published official Xray v26.10.31, commit `a4a3dff5b20c2faae567b742c172c7b95e75c083`. Provenance: [REMNACUST-UPSTREAM.json](xray/REMNACUST-UPSTREAM.json); see [Core 1.1.16 changes](docs/releases/1.1.16.md). New source in the branch does not mean the published binary has been updated.
+The base is published official Xray v26.11.9, commit `a4a3dff5b20c2faae567b742c172c7b95e75c083`. Provenance: [REMNACUST-UPSTREAM.json](xray/REMNACUST-UPSTREAM.json); see [Core 1.1.17 changes](docs/releases/1.1.17.md). New source in the branch does not mean the published binary has been updated.
 
 ## Installation and updates
 
@@ -34,14 +34,14 @@ Preserve `/opt/remnacust/node/.env`, `SECRET_KEY`, Compose and all private state
 
 ## Features and compatibility
 
-Node 1.1.26 contains two separate binaries: custom Core 1.1.16 and stock Xray v26.10.31. The panel's global mode defaults to custom. Default does not support Remnacust extensions; changing modes checks saved policies and quotas without deleting journals or silently removing limits. The editor uses separate custom and pristine upstream WASM/schema assets; browser validation does not prove a native connection works.
+Node 1.1.26 contains two separate binaries: custom Core 1.1.17 and stock Xray v26.11.9. The panel's global mode defaults to custom. Default does not support Remnacust extensions; changing modes checks saved policies and quotas without deleting journals or silently removing limits. The editor uses separate custom and pristine upstream WASM/schema assets; browser validation does not prove a native connection works.
 
 - Xera HTTP: `network: "xera-http"` and `xeraHttpSettings`; compatible client and server cores are required. Standard XHTTP is a separate transport.
 - Host/tag policies, quotas and user/device speed limits. Additional connections do not increase the allocated budget.
 - Access revocation using the authenticated key without disconnecting other devices behind the same NAT.
 - Compatible runtime updates can preserve connections. Changing a listener, port, transport or process requires planning for interruption.
 
-Standard configurations retain legacy compatibility within each client's/core's capabilities. Compatible XDNS, TUN, QUIC udpHop and outbound XDRIVE segment announcement variants are retained as listed in provenance. Ordinary upstream Xray does not automatically gain Remnacust extensions; do not bypass persisted policy checks to install an unsuitable core. Xray v26.10.31 disables MPTCP by default; updating Core does not replace Linux kernel updates.
+Standard configurations retain legacy compatibility within each client's/core's capabilities. Compatible XDNS, TUN, QUIC udpHop and outbound XDRIVE segment announcement variants are retained as listed in provenance. Ordinary upstream Xray does not automatically gain Remnacust extensions; do not bypass persisted policy checks to install an unsuitable core. Xray v26.11.9 disables MPTCP by default; updating Core does not replace Linux kernel updates.
 
 [Compatibility](docs/COMPATIBILITY.md) · [Profile graphs](docs/PROFILE-GRAPHS.md) · [Limit scopes](https://github.com/lottman/Remnacust-panel/blob/main/docs/HOST-LIMITS.md).
 
@@ -51,9 +51,9 @@ Existing connections and policies can operate without the panel while access rig
 
 A day of offline operation requires enough validity time and local credit for traffic and recovery. Restart requires compatible Node/Core versions and persisted configuration, credentials and journals. There is no 24-hour guarantee for every older core or after state loss. [Offline operation requirements](https://github.com/lottman/Remnacust-panel/blob/main/docs/NODE-AUTONOMY.md).
 
-## Core 1.1.16 changes
+## Core 1.1.17 changes
 
-Updates stable Go dependencies and the standalone editor to Node.js 26.13 LTS, React 19 and Mantine 9; Monaco uses verified DOMPurify. Adds a separate pristine upstream browser validator build for default mode. Custom transports, patched uTLS/olcRTC and offline enforcement remain intact. [Release changes](docs/releases/1.1.16.md).
+Updates stable Go dependencies and the standalone editor to Node.js 26.13 LTS, React 19 and Mantine 9; Monaco uses verified DOMPurify. Adds a separate pristine upstream browser validator build for default mode. Custom transports, patched uTLS/olcRTC and offline enforcement remain intact. [Release changes](docs/releases/1.1.17.md).
 
 ## Build and validation
 
@@ -95,3 +95,5 @@ The script updates the schema and WASM and checks panel resources; rebuild the f
 ## Attribution and licenses
 
 Remnacust is maintained by lottman. Attribution to [XTLS/Xray-core](https://github.com/XTLS/Xray-core) and its contributors, the [MPL-2.0](xray/LICENSE) license and original notices are retained. The editor and dependencies retain their own licenses. [NOTICE.md](NOTICE.md) · [Panel](https://github.com/lottman/Remnacust-panel) · [Node](https://github.com/lottman/Remnacust-node) · [Support](https://t.me/lottman).
+
+XDRIVE keeps legacy segment announcements by default. `xdriveSettings.useSlots: true` enables the new upstream slot format and requires a compatible peer. Updating Core does not patch the Linux kernel; check your OS vendor status for CVE-2026-98432.

@@ -987,6 +987,7 @@ func readFileOrString(f string, s []string) ([]byte, error) {
 }
 
 type XDriveConfig struct {
+	UseSlots          bool            `json:"useSlots"`
 	RemoteFolder      string          `json:"remoteFolder"`
 	Service           string          `json:"service"`
 	Secrets           []string        `json:"secrets"`
@@ -1052,6 +1053,7 @@ func (c *XDriveConfig) Build() (proto.Message, error) {
 		c.Xmux.HMaxReusableSecs.To = 3000
 	}
 	config := &xdrive.Config{
+		UseSlots:          c.UseSlots,
 		RemoteFolder:      c.RemoteFolder,
 		Service:           c.Service,
 		Secrets:           c.Secrets,

@@ -16,13 +16,13 @@ bash <(curl -fsSL https://raw.githubusercontent.com/lottman/Remnacust-installer/
 
 | Компонент | Версия |
 | --- | --- |
-| Core | [1.1.16](https://github.com/lottman/Remnacust-core/releases/tag/v1.1.16) |
-| Основа Xray | [v26.10.31](https://github.com/XTLS/Xray-core/releases/tag/v26.10.31) |
+| Core | [1.1.17](https://github.com/lottman/Remnacust-core/releases/tag/v1.1.17) |
+| Основа Xray | [v26.11.9](https://github.com/XTLS/Xray-core/releases/tag/v26.11.9) |
 | Node | [1.1.26](https://github.com/lottman/Remnacust-node/releases/tag/v1.1.26) |
 | Панель и страница подписки | [1.1.7.100](https://github.com/lottman/Remnacust-panel/releases/tag/v1.1.7.100) |
 | Installer | [1.2.144](https://github.com/lottman/Remnacust-installer/releases/tag/v1.2.144) |
 
-Основа — опубликованный официальный Xray v26.10.31, коммит `a4a3dff5b20c2faae567b742c172c7b95e75c083`. Происхождение: [REMNACUST-UPSTREAM.json](xray/REMNACUST-UPSTREAM.json); [изменения Core 1.1.16](docs/releases/1.1.16.md). Новые исходники в ветке не означают обновление опубликованного бинарника.
+Основа — опубликованный официальный Xray v26.11.9, коммит `a4a3dff5b20c2faae567b742c172c7b95e75c083`. Происхождение: [REMNACUST-UPSTREAM.json](xray/REMNACUST-UPSTREAM.json); [изменения Core 1.1.17](docs/releases/1.1.17.md). Новые исходники в ветке не означают обновление опубликованного бинарника.
 
 ## Установка и обновление
 
@@ -34,14 +34,14 @@ bash <(curl -fsSL https://raw.githubusercontent.com/lottman/Remnacust-installer/
 
 ## Возможности и совместимость
 
-Node 1.1.26 включает два отдельных бинарника: custom Core 1.1.16 и штатный Xray v26.10.31. Глобальный режим панели по умолчанию — custom. Default не поддерживает расширения Remnacust; смена режима проходит проверки сохранённых политик и квот, без удаления журналов или автоматического снятия ограничений. Для редактора собираются отдельные custom и pristine upstream WASM/схемы; успешная browser-проверка не подтверждает работу native-соединения.
+Node 1.1.26 включает два отдельных бинарника: custom Core 1.1.17 и штатный Xray v26.11.9. Глобальный режим панели по умолчанию — custom. Default не поддерживает расширения Remnacust; смена режима проходит проверки сохранённых политик и квот, без удаления журналов или автоматического снятия ограничений. Для редактора собираются отдельные custom и pristine upstream WASM/схемы; успешная browser-проверка не подтверждает работу native-соединения.
 
 - Xera HTTP: `network: "xera-http"` и `xeraHttpSettings`; нужны совместимые ядра клиента и сервера. Стандартный XHTTP — отдельный транспорт.
 - Политики хостов/тегов, квоты и пределы скорости пользователя и устройства. Дополнительные соединения не увеличивают выделенный бюджет.
 - Отзыв доступа по авторизованному ключу без отключения остальных устройств за тем же NAT.
 - Совместимое runtime-применение может сохранять соединения. Смена listener, порта, транспорта или процесса требует планирования перерыва.
 
-Стандартные конфигурации сохраняют legacy-совместимость в пределах возможностей клиента/ядра. Сохранены совместимые варианты XDNS, TUN, QUIC udpHop и сегментное объявление исходящего XDRIVE, перечисленные в provenance. Обычный upstream Xray не получает расширения Remnacust автоматически; не обходите проверки сохранённых политик для установки неподходящего ядра. В Xray v26.10.31 MPTCP выключен по умолчанию; обновление Core не заменяет обновление ядра Linux.
+Стандартные конфигурации сохраняют legacy-совместимость в пределах возможностей клиента/ядра. Сохранены совместимые варианты XDNS, TUN, QUIC udpHop и сегментное объявление исходящего XDRIVE, перечисленные в provenance. Обычный upstream Xray не получает расширения Remnacust автоматически; не обходите проверки сохранённых политик для установки неподходящего ядра. В Xray v26.11.9 MPTCP выключен по умолчанию; обновление Core не заменяет обновление ядра Linux.
 
 [Совместимость](docs/COMPATIBILITY.md) · [Графы профилей](docs/PROFILE-GRAPHS.md) · [Области лимитов](https://github.com/lottman/Remnacust-panel/blob/main/docs/HOST-LIMITS.md).
 
@@ -51,9 +51,9 @@ Node 1.1.26 включает два отдельных бинарника: custo
 
 Для суток автономности нужен запас срока и локального кредита на трафик и восстановление. Restart требует совместимых Node/Core, сохранённых конфигурации, credentials и журналов. Нельзя гарантировать 24 часа для любого прежнего ядра или после потери состояния. [Условия автономности](https://github.com/lottman/Remnacust-panel/blob/main/docs/NODE-AUTONOMY.md).
 
-## Изменения Core 1.1.16
+## Изменения Core 1.1.17
 
-Обновлены стабильные Go-зависимости и самостоятельный редактор на Node.js 26.13 LTS, React 19 и Mantine 9; Monaco использует проверенный DOMPurify. Добавлена отдельная сборка browser-валидатора pristine upstream для default-режима. Сохранены custom transports, patched uTLS/olcRTC и ограничения автономной работы. [Изменения выпуска](docs/releases/1.1.16.md).
+Обновлены стабильные Go-зависимости и самостоятельный редактор на Node.js 26.13 LTS, React 19 и Mantine 9; Monaco использует проверенный DOMPurify. Добавлена отдельная сборка browser-валидатора pristine upstream для default-режима. Сохранены custom transports, patched uTLS/olcRTC и ограничения автономной работы. [Изменения выпуска](docs/releases/1.1.17.md).
 
 ## Сборка и проверка
 
@@ -95,3 +95,5 @@ bash editor/go/build-remnacust.sh
 ## Авторство и лицензии
 
 Remnacust поддерживается lottman. Сохраняются авторство [XTLS/Xray-core](https://github.com/XTLS/Xray-core) и участников проекта, лицензия [MPL-2.0](xray/LICENSE) и исходные notices. Редактор и зависимости сохраняют собственные лицензии. [NOTICE.md](NOTICE.md) · [Панель](https://github.com/lottman/Remnacust-panel) · [Нода](https://github.com/lottman/Remnacust-node) · [Поддержка](https://t.me/lottman).
+
+XDRIVE сохраняет сегментный формат для старых узлов по умолчанию. `xdriveSettings.useSlots: true` включает новый формат слотов upstream; используйте его только с совместимой принимающей стороной. Обновление Core не исправляет ядро Linux: проверяйте статус CVE-2026-98432 у поставщика ОС.

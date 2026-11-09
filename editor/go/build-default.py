@@ -10,6 +10,7 @@ import tempfile
 import zipfile
 
 SOURCE_ARCHIVES = {
+    '676eaf66f8f05d4d558ee7a74b4736623d3feeb9': 'eab6fad20dfabc862c2537552e136e195de93d166c9a0bab72e408b4295eb7dc',
     'a4a3dff5b20c2faae567b742c172c7b95e75c083': 'dcaec8dbf4520883c63544f48c972807cc2445f2a932b8fe63867361ef32084c',
 }
 

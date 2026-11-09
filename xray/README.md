@@ -1,6 +1,6 @@
 # Исходники Remnacust Core
 
-**Core 1.1.16**, основа — опубликованный стабильный **Xray v26.10.31**, коммит `a4a3dff5b20c2faae567b742c172c7b95e75c083`.
+**Core 1.1.17**, основа — опубликованный стабильный **Xray v26.11.9**, коммит `a4a3dff5b20c2faae567b742c172c7b95e75c083`.
 
 Каталог содержит Go-модуль `github.com/xtls/xray-core` и расширения Remnacust. Точный upstream и совместимость: [REMNACUST-UPSTREAM.json](REMNACUST-UPSTREAM.json). Относительная зависимость `../vendor/olcrtc` должна оставаться доступной при сборке.
 

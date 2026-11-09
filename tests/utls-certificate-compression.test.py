@@ -39,7 +39,10 @@ with tempfile.TemporaryDirectory(prefix='remnacust-utls-integrity-') as temporar
     workspace = Path(temporary)
     for name in metadata['patchedFiles']:
         (workspace / name).write_bytes((source / name).read_bytes())
-    run('git', 'apply', '--reverse', str(patch), cwd=workspace)
+    if metadata['patchedFiles']:
+        run('git', 'apply', '--reverse', str(patch), cwd=workspace)
+    elif patch.read_bytes() or metadata.get('certificateCompressionFix') != 'included-upstream':
+        raise RuntimeError('Unexpected untracked certificate patch')
     for name in metadata['patchedFiles']:
         if digest(workspace / name) != metadata['upstreamFiles'][name]:
             raise RuntimeError(f'Patch does not reproduce the upstream baseline: {name}')

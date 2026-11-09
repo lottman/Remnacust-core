@@ -20,6 +20,7 @@ message Config {
   string template = 12;
   xray.transport.internet.splithttp.XmuxConfig xmux = 13;
   S3Config s3 = 14;
+  bool use_slots = 15;
 }
 
 message S3Config {

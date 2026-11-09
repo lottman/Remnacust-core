@@ -690,6 +690,12 @@
           "string"
         ]
       },
+      "delay": {
+        "type": [
+          "integer",
+          "string"
+        ]
+      },
       "ip": {
         "anyOf": [
           {
@@ -702,6 +708,9 @@
             "type": "array"
           }
         ]
+      },
+      "logLevel": {
+        "type": "string"
       },
       "network": {
         "anyOf": [
@@ -1166,7 +1175,7 @@
       "error": {
         "type": "string"
       },
-      "loglevel": {
+      "logLevel": {
         "type": "string"
       },
       "maskAddress": {
@@ -3618,6 +3627,9 @@
         "type": "integer"
       },
       "template": {},
+      "useSlots": {
+        "type": "boolean"
+      },
       "xmux": {
         "$ref": "#/definitions/RemnacustCoreXmuxConfig"
       }
