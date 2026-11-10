@@ -16,17 +16,17 @@ bash <(curl -fsSL https://raw.githubusercontent.com/lottman/Remnacust-installer/
 
 | Компонент | Версия |
 | --- | --- |
-| Core | [1.1.17](https://github.com/lottman/Remnacust-core/releases/tag/v1.1.17) |
+| Core | [1.1.18](https://github.com/lottman/Remnacust-core/releases/tag/v1.1.18) |
 | Основа Xray | [v26.11.9](https://github.com/XTLS/Xray-core/releases/tag/v26.11.9) |
-| Node | [1.1.26](https://github.com/lottman/Remnacust-node/releases/tag/v1.1.26) |
-| Панель и страница подписки | [1.1.7.100](https://github.com/lottman/Remnacust-panel/releases/tag/v1.1.7.100) |
-| Installer | [1.2.144](https://github.com/lottman/Remnacust-installer/releases/tag/v1.2.144) |
+| Node | [1.1.29](https://github.com/lottman/Remnacust-node/releases/tag/v1.1.29) |
+| Панель и страница подписки | [1.1.7.112](https://github.com/lottman/Remnacust-panel/releases/tag/v1.1.7.112) |
+| Installer | [1.2.159](https://github.com/lottman/Remnacust-installer/releases/tag/v1.2.159) |
 
-Основа — опубликованный официальный Xray v26.11.9, коммит `a4a3dff5b20c2faae567b742c172c7b95e75c083`. Происхождение: [REMNACUST-UPSTREAM.json](xray/REMNACUST-UPSTREAM.json); [изменения Core 1.1.17](docs/releases/1.1.17.md). Новые исходники в ветке не означают обновление опубликованного бинарника.
+Основа — опубликованный официальный Xray v26.11.9, коммит `676eaf66f8f05d4d558ee7a74b4736623d3feeb9`. Происхождение: [REMNACUST-UPSTREAM.json](xray/REMNACUST-UPSTREAM.json); [изменения Core 1.1.18](docs/releases/1.1.18.md). Новые исходники в ветке не означают обновление опубликованного бинарника.
 
 ## Установка и обновление
 
-Для VPS используйте готовый комплект из [инструкции Node](https://github.com/lottman/Remnacust-node). Installer 1.2.144 поддерживает Ubuntu 22.04/24.04/26.04 LTS и Debian 12/13, Linux amd64/arm64. Начальный ориентир ноды — 1 CPU и 1 GiB RAM без гарантии ёмкости; Node.js и Go на хосте не нужны.
+Для VPS используйте готовый комплект из [инструкции Node](https://github.com/lottman/Remnacust-node). Installer 1.2.159 поддерживает Ubuntu 22.04/24.04/26.04 LTS и Debian 12/13, Linux amd64/arm64. Начальный ориентир ноды — 1 CPU и 1 GiB RAM без гарантии ёмкости; Node.js и Go на хосте не нужны.
 
 Релизы Core содержат Linux-бинарники amd64/arm64 и `SHA256SUMS`. Для управляемой ноды выбирайте проверенное ядро через панель или `sudo remnacust manage-node`; не подменяйте работающий бинарник вручную. Обновление панели не обновляет удалённые ноды. `sudo remnacust upgrade-node` обновляет образ агента со встроенным Core, но отдельно выбранное managed-ядро может оставаться закреплённым. Проверяйте активные версию и режим.
 
@@ -34,7 +34,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/lottman/Remnacust-installer/
 
 ## Возможности и совместимость
 
-Node 1.1.26 включает два отдельных бинарника: custom Core 1.1.17 и штатный Xray v26.11.9. Глобальный режим панели по умолчанию — custom. Default не поддерживает расширения Remnacust; смена режима проходит проверки сохранённых политик и квот, без удаления журналов или автоматического снятия ограничений. Для редактора собираются отдельные custom и pristine upstream WASM/схемы; успешная browser-проверка не подтверждает работу native-соединения.
+Node 1.1.29 включает два отдельных бинарника: custom Core 1.1.18 и штатный Xray v26.11.9. Глобальный режим панели по умолчанию — custom. Default не поддерживает расширения Remnacust; смена режима проходит проверки сохранённых политик и квот, без удаления журналов или автоматического снятия ограничений. Для редактора собираются отдельные custom и pristine upstream WASM/схемы; успешная browser-проверка не подтверждает работу native-соединения.
 
 - Xera HTTP: `network: "xera-http"` и `xeraHttpSettings`; нужны совместимые ядра клиента и сервера. Стандартный XHTTP — отдельный транспорт.
 - Политики хостов/тегов, квоты и пределы скорости пользователя и устройства. Дополнительные соединения не увеличивают выделенный бюджет.
@@ -51,9 +51,9 @@ Node 1.1.26 включает два отдельных бинарника: custo
 
 Для суток автономности нужен запас срока и локального кредита на трафик и восстановление. Restart требует совместимых Node/Core, сохранённых конфигурации, credentials и журналов. Нельзя гарантировать 24 часа для любого прежнего ядра или после потери состояния. [Условия автономности](https://github.com/lottman/Remnacust-panel/blob/main/docs/NODE-AUTONOMY.md).
 
-## Изменения Core 1.1.17
+## Изменения Core 1.1.18
 
-Обновлены стабильные Go-зависимости и самостоятельный редактор на Node.js 26.13 LTS, React 19 и Mantine 9; Monaco использует проверенный DOMPurify. Добавлена отдельная сборка browser-валидатора pristine upstream для default-режима. Сохранены custom transports, patched uTLS/olcRTC и ограничения автономной работы. [Изменения выпуска](docs/releases/1.1.17.md).
+Обновлены стабильные Go-зависимости и самостоятельный редактор на Node.js 26.13 LTS, React 19 и Mantine 9; Monaco использует проверенный DOMPurify. Добавлена отдельная сборка browser-валидатора pristine upstream для default-режима. Сохранены custom transports, patched uTLS/olcRTC и ограничения автономной работы. [Изменения выпуска](docs/releases/1.1.18.md).
 
 ## Сборка и проверка
 

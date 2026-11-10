@@ -20,7 +20,13 @@ import (
 var (
 	Version_x byte = 1
 	Version_y byte = 1
-	Version_z byte = 17
+	Version_z byte = 18
+)
+
+const (
+	UpstreamVersion_x byte = 26
+	UpstreamVersion_y byte = 11
+	UpstreamVersion_z byte = 9
 )
 
 var (

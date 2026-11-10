@@ -10,8 +10,10 @@ expected = (root / 'VERSION').read_text().strip()
 source = (root / 'xray/core/core.go').read_text()
 actual = '.'.join(re.search(r'Version_' + axis + r'\s+byte\s*=\s*(\d+)', source).group(1) for axis in 'xyz')
 assert actual == expected, 'Runtime version differs from VERSION'
+wire = '.'.join(re.search(r'UpstreamVersion_' + axis + r'\s+byte\s*=\s*(\d+)', source).group(1) for axis in 'xyz')
 metadata = json.loads((root / 'xray/REMNACUST-UPSTREAM.json').read_text())
 assert metadata['version'] == expected
+assert 'v' + wire == metadata['upstreamVersion'], 'REALITY wire version differs from the reviewed upstream baseline'
 modules = (root / 'xray/go.mod').read_text()
 for dependency in metadata.get('dependencySecurityUpdates', []):
     declared = re.search(r'^\s*' + re.escape(dependency['module']) + r'\s+(\S+)\s*$', modules, re.MULTILINE)

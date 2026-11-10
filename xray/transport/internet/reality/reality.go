@@ -165,9 +165,9 @@ func UClient(c net.Conn, config *Config, ctx context.Context, dest net.Destinati
 		hello := uConn.HandshakeState.Hello
 		hello.SessionId = make([]byte, 32)
 		copy(hello.Raw[39:], hello.SessionId) // the fixed location of `Session ID`
-		hello.SessionId[0] = core.Version_x
-		hello.SessionId[1] = core.Version_y
-		hello.SessionId[2] = core.Version_z
+		hello.SessionId[0] = core.UpstreamVersion_x
+		hello.SessionId[1] = core.UpstreamVersion_y
+		hello.SessionId[2] = core.UpstreamVersion_z
 		hello.SessionId[3] = 0 // reserved
 		binary.BigEndian.PutUint32(hello.SessionId[4:], uint32(time.Now().Unix()))
 		copy(hello.SessionId[8:], config.ShortId)
