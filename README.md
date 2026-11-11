@@ -16,17 +16,17 @@ bash <(curl -fsSL https://raw.githubusercontent.com/lottman/Remnacust-installer/
 
 | Компонент | Версия |
 | --- | --- |
-| Core | [1.1.18](https://github.com/lottman/Remnacust-core/releases/tag/v1.1.18) |
+| Core | [1.1.19](https://github.com/lottman/Remnacust-core/releases/tag/v1.1.19) |
 | Основа Xray | [v26.11.9](https://github.com/XTLS/Xray-core/releases/tag/v26.11.9) |
-| Node | [1.1.29](https://github.com/lottman/Remnacust-node/releases/tag/v1.1.29) |
-| Панель и страница подписки | [1.1.7.112](https://github.com/lottman/Remnacust-panel/releases/tag/v1.1.7.112) |
-| Installer | [1.2.159](https://github.com/lottman/Remnacust-installer/releases/tag/v1.2.159) |
+| Node | [1.1.31](https://github.com/lottman/Remnacust-node/releases/tag/v1.1.31) |
+| Панель и страница подписки | [1.1.7.116](https://github.com/lottman/Remnacust-panel/releases/tag/v1.1.7.116) |
+| Installer | [1.2.164](https://github.com/lottman/Remnacust-installer/releases/tag/v1.2.164) |
 
-Основа — опубликованный официальный Xray v26.11.9, коммит `676eaf66f8f05d4d558ee7a74b4736623d3feeb9`. Происхождение: [REMNACUST-UPSTREAM.json](xray/REMNACUST-UPSTREAM.json); [изменения Core 1.1.18](docs/releases/1.1.18.md). Новые исходники в ветке не означают обновление опубликованного бинарника.
+Основа — опубликованный официальный Xray v26.11.9, коммит `676eaf66f8f05d4d558ee7a74b4736623d3feeb9`. Происхождение: [REMNACUST-UPSTREAM.json](xray/REMNACUST-UPSTREAM.json); [изменения Core 1.1.19](docs/releases/1.1.19.md). Новые исходники в ветке не означают обновление опубликованного бинарника.
 
 ## Установка и обновление
 
-Для VPS используйте готовый комплект из [инструкции Node](https://github.com/lottman/Remnacust-node). Installer 1.2.159 поддерживает Ubuntu 22.04/24.04/26.04 LTS и Debian 12/13, Linux amd64/arm64. Начальный ориентир ноды — 1 CPU и 1 GiB RAM без гарантии ёмкости; Node.js и Go на хосте не нужны.
+Для VPS используйте готовый комплект из [инструкции Node](https://github.com/lottman/Remnacust-node). Installer 1.2.164 поддерживает Ubuntu 22.04/24.04/26.04 LTS и Debian 12/13, Linux amd64/arm64. Начальный ориентир ноды — 1 CPU и 1 GiB RAM без гарантии ёмкости; Node.js и Go на хосте не нужны.
 
 Релизы Core содержат Linux-бинарники amd64/arm64 и `SHA256SUMS`. Для управляемой ноды выбирайте проверенное ядро через панель или `sudo remnacust manage-node`; не подменяйте работающий бинарник вручную. Обновление панели не обновляет удалённые ноды. `sudo remnacust upgrade-node` обновляет образ агента со встроенным Core, но отдельно выбранное managed-ядро может оставаться закреплённым. Проверяйте активные версию и режим.
 
@@ -34,7 +34,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/lottman/Remnacust-installer/
 
 ## Возможности и совместимость
 
-Node 1.1.29 включает два отдельных бинарника: custom Core 1.1.18 и штатный Xray v26.11.9. Глобальный режим панели по умолчанию — custom. Default не поддерживает расширения Remnacust; смена режима проходит проверки сохранённых политик и квот, без удаления журналов или автоматического снятия ограничений. Для редактора собираются отдельные custom и pristine upstream WASM/схемы; успешная browser-проверка не подтверждает работу native-соединения.
+Node 1.1.31 включает два отдельных бинарника: custom Core 1.1.19 и штатный Xray v26.11.9. Глобальный режим панели по умолчанию — custom. Default не поддерживает расширения Remnacust; смена режима проходит проверки сохранённых политик и квот, без удаления журналов или автоматического снятия ограничений. Для редактора собираются отдельные custom и pristine upstream WASM/схемы; успешная browser-проверка не подтверждает работу native-соединения.
 
 - Xera HTTP: `network: "xera-http"` и `xeraHttpSettings`; нужны совместимые ядра клиента и сервера. Стандартный XHTTP — отдельный транспорт.
 - Политики хостов/тегов, квоты и пределы скорости пользователя и устройства. Дополнительные соединения не увеличивают выделенный бюджет.
@@ -51,13 +51,13 @@ Node 1.1.29 включает два отдельных бинарника: custo
 
 Для суток автономности нужен запас срока и локального кредита на трафик и восстановление. Restart требует совместимых Node/Core, сохранённых конфигурации, credentials и журналов. Нельзя гарантировать 24 часа для любого прежнего ядра или после потери состояния. [Условия автономности](https://github.com/lottman/Remnacust-panel/blob/main/docs/NODE-AUTONOMY.md).
 
-## Изменения Core 1.1.18
+## Изменения Core 1.1.19
 
-Обновлены стабильные Go-зависимости и самостоятельный редактор на Node.js 26.13 LTS, React 19 и Mantine 9; Monaco использует проверенный DOMPurify. Добавлена отдельная сборка browser-валидатора pristine upstream для default-режима. Сохранены custom transports, patched uTLS/olcRTC и ограничения автономной работы. [Изменения выпуска](docs/releases/1.1.18.md).
+Обновлены стабильные Go-зависимости и самостоятельный редактор на Node.js 26.13 LTS, React 19 и Mantine 9; Monaco использует проверенный DOMPurify. Добавлена отдельная сборка browser-валидатора pristine upstream для default-режима. Сохранены custom transports, patched uTLS/olcRTC и ограничения автономной работы. [Изменения выпуска](docs/releases/1.1.19.md).
 
 ## Сборка и проверка
 
-Нужен **Go 1.27.3**. Клонируйте весь репозиторий: `xray/go.mod` использует относительные пути к `vendor/olcrtc` и `vendor/utls`. Имя модуля `github.com/xtls/xray-core` сохранено для совместимости импортов.
+Нужен **Go 1.27.4**. Клонируйте весь репозиторий: `xray/go.mod` использует относительные пути к `vendor/olcrtc` и `vendor/utls`. Имя модуля `github.com/xtls/xray-core` сохранено для совместимости импортов.
 
 ```bash
 git clone https://github.com/lottman/Remnacust-core.git
@@ -82,7 +82,7 @@ go test -race ./infra/conf ./core ./app/dispatcher ./app/stats ./app/stats/comma
 
 ## Редактор панели
 
-Схема и WASM используют те же строители конфигурации, что native Core. Сборка редактора требует Go 1.27.3, Node.js 26.13 LTS, Python 3 и зависимостей frontend панели; это инструменты разработки, а не требования к VPS. Соседний checkout панели определяется автоматически, другой путь задаётся через `REMNACUST_PANEL_SOURCE`.
+Схема и WASM используют те же строители конфигурации, что native Core. Сборка редактора требует Go 1.27.4, Node.js 26.13 LTS, Python 3 и зависимостей frontend панели; это инструменты разработки, а не требования к VPS. Соседний checkout панели определяется автоматически, другой путь задаётся через `REMNACUST_PANEL_SOURCE`.
 
 Из корня репозитория:
 

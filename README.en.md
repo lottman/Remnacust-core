@@ -16,17 +16,17 @@ bash <(curl -fsSL https://raw.githubusercontent.com/lottman/Remnacust-installer/
 
 | Component | Version |
 | --- | --- |
-| Core | [1.1.18](https://github.com/lottman/Remnacust-core/releases/tag/v1.1.18) |
+| Core | [1.1.19](https://github.com/lottman/Remnacust-core/releases/tag/v1.1.19) |
 | Xray base | [v26.11.9](https://github.com/XTLS/Xray-core/releases/tag/v26.11.9) |
-| Node | [1.1.29](https://github.com/lottman/Remnacust-node/releases/tag/v1.1.29) |
-| Panel and subscription page | [1.1.7.112](https://github.com/lottman/Remnacust-panel/releases/tag/v1.1.7.112) |
-| Installer | [1.2.159](https://github.com/lottman/Remnacust-installer/releases/tag/v1.2.159) |
+| Node | [1.1.31](https://github.com/lottman/Remnacust-node/releases/tag/v1.1.31) |
+| Panel and subscription page | [1.1.7.116](https://github.com/lottman/Remnacust-panel/releases/tag/v1.1.7.116) |
+| Installer | [1.2.164](https://github.com/lottman/Remnacust-installer/releases/tag/v1.2.164) |
 
-The base is published official Xray v26.11.9, commit `676eaf66f8f05d4d558ee7a74b4736623d3feeb9`. Provenance: [REMNACUST-UPSTREAM.json](xray/REMNACUST-UPSTREAM.json); see [Core 1.1.18 changes](docs/releases/1.1.18.md). New source in the branch does not mean the published binary has been updated.
+The base is published official Xray v26.11.9, commit `676eaf66f8f05d4d558ee7a74b4736623d3feeb9`. Provenance: [REMNACUST-UPSTREAM.json](xray/REMNACUST-UPSTREAM.json); see [Core 1.1.19 changes](docs/releases/1.1.19.md). New source in the branch does not mean the published binary has been updated.
 
 ## Installation and updates
 
-For a VPS, use the ready components described in the [Node guide](https://github.com/lottman/Remnacust-node). Installer 1.2.159 supports Ubuntu 22.04/24.04/26.04 LTS and Debian 12/13, Linux amd64/arm64. The starting node baseline is 1 CPU and 1 GiB RAM without a capacity guarantee; Node.js and Go are not needed on the host.
+For a VPS, use the ready components described in the [Node guide](https://github.com/lottman/Remnacust-node). Installer 1.2.164 supports Ubuntu 22.04/24.04/26.04 LTS and Debian 12/13, Linux amd64/arm64. The starting node baseline is 1 CPU and 1 GiB RAM without a capacity guarantee; Node.js and Go are not needed on the host.
 
 Core releases include Linux amd64/arm64 binaries and `SHA256SUMS`. For a managed node, select a verified core through the panel or `sudo remnacust manage-node`; do not manually replace a running binary. Updating the panel does not update remote nodes. `sudo remnacust upgrade-node` updates the agent image with its bundled Core, but a separately selected managed core may remain pinned. Check the active version and mode.
 
@@ -34,7 +34,7 @@ Preserve `/opt/remnacust/node/.env`, `SECRET_KEY`, Compose and all private state
 
 ## Features and compatibility
 
-Node 1.1.29 contains two separate binaries: custom Core 1.1.18 and stock Xray v26.11.9. The panel's global mode defaults to custom. Default does not support Remnacust extensions; changing modes checks saved policies and quotas without deleting journals or silently removing limits. The editor uses separate custom and pristine upstream WASM/schema assets; browser validation does not prove a native connection works.
+Node 1.1.31 contains two separate binaries: custom Core 1.1.19 and stock Xray v26.11.9. The panel's global mode defaults to custom. Default does not support Remnacust extensions; changing modes checks saved policies and quotas without deleting journals or silently removing limits. The editor uses separate custom and pristine upstream WASM/schema assets; browser validation does not prove a native connection works.
 
 - Xera HTTP: `network: "xera-http"` and `xeraHttpSettings`; compatible client and server cores are required. Standard XHTTP is a separate transport.
 - Host/tag policies, quotas and user/device speed limits. Additional connections do not increase the allocated budget.
@@ -51,13 +51,13 @@ Existing connections and policies can operate without the panel while access rig
 
 A day of offline operation requires enough validity time and local credit for traffic and recovery. Restart requires compatible Node/Core versions and persisted configuration, credentials and journals. There is no 24-hour guarantee for every older core or after state loss. [Offline operation requirements](https://github.com/lottman/Remnacust-panel/blob/main/docs/NODE-AUTONOMY.md).
 
-## Core 1.1.18 changes
+## Core 1.1.19 changes
 
-Updates stable Go dependencies and the standalone editor to Node.js 26.13 LTS, React 19 and Mantine 9; Monaco uses verified DOMPurify. Adds a separate pristine upstream browser validator build for default mode. Custom transports, patched uTLS/olcRTC and offline enforcement remain intact. [Release changes](docs/releases/1.1.18.md).
+Updates stable Go dependencies and the standalone editor to Node.js 26.13 LTS, React 19 and Mantine 9; Monaco uses verified DOMPurify. Adds a separate pristine upstream browser validator build for default mode. Custom transports, patched uTLS/olcRTC and offline enforcement remain intact. [Release changes](docs/releases/1.1.19.md).
 
 ## Build and validation
 
-**Go 1.27.3** is required. Clone the whole repository: `xray/go.mod` uses relative paths to `vendor/olcrtc` and `vendor/utls`. The module name `github.com/xtls/xray-core` is retained for import compatibility.
+**Go 1.27.4** is required. Clone the whole repository: `xray/go.mod` uses relative paths to `vendor/olcrtc` and `vendor/utls`. The module name `github.com/xtls/xray-core` is retained for import compatibility.
 
 ```bash
 git clone https://github.com/lottman/Remnacust-core.git
@@ -82,7 +82,7 @@ Run network checks in an isolated Linux environment. [Build guide](docs/BUILDING
 
 ## Panel editor
 
-The schema and WASM use the same configuration builders as native Core. Editor builds require Go 1.27.3, Node.js 26.13 LTS, Python 3 and the panel frontend dependencies; these are development tools rather than VPS requirements. An adjacent panel checkout is detected automatically; set `REMNACUST_PANEL_SOURCE` for another location.
+The schema and WASM use the same configuration builders as native Core. Editor builds require Go 1.27.4, Node.js 26.13 LTS, Python 3 and the panel frontend dependencies; these are development tools rather than VPS requirements. An adjacent panel checkout is detected automatically; set `REMNACUST_PANEL_SOURCE` for another location.
 
 From the repository root:
 

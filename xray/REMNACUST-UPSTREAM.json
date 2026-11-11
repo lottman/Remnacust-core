@@ -20,7 +20,7 @@
     "legacy XDNS name/type/settings.addr",
     "legacy XDRIVE outbound segment announcements"
   ],
-  "version": "1.1.18",
+  "version": "1.1.19",
   "upstreamPatches": [],
   "checkedAt": "2026-11-09",
   "pendingRelease": false,
@@ -52,5 +52,14 @@
       "source": "https://github.com/XTLS/Xray-core/releases/tag/v26.10.21",
       "toolchain": "go1.27.3"
     }
-  ]
+  ],
+  "toolchainSecurityUpdate": {
+    "previousVersion": "go1.27.3",
+    "version": "go1.27.4",
+    "source": "https://go.dev/doc/devel/release#go1.27.4",
+    "reports": [
+      "GO-2026-6859"
+    ]
+  },
+  "upstreamSourceZipSha256": "05623c5394d82870edcfdd9355169b05453da133544355012b2cd1874e67f100"
 }
