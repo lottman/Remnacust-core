@@ -1,0 +1,20 @@
+{
+  "browser": "Google Chrome for Testing headless shell",
+  "version": "155.0.8059.84",
+  "revision": "1697595",
+  "platform": "win64",
+  "catalog": "https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json",
+  "archive": "https://storage.googleapis.com/chrome-for-testing-public/155.0.8059.84/win64/chrome-headless-shell-win64.zip",
+  "archiveSHA256": "5ca590a4968864e219ea25ccd134597ef8898a733a4698c07fc3e8b2c480fef4",
+  "captureDate": "2026-11-14",
+  "capture": "Isolated loopback TLS server, generated certificate with a certificate-specific SPKI allowlist in the temporary browser profile; navigation GET and same-origin fetch POST observed after TLS termination.",
+  "scope": "Initial HTTP/2 SETTINGS order and values, connection WINDOW_UPDATE increment and request pseudoheader order only; not a complete browser fingerprint or traffic-classifier resistance claim.",
+  "settings": [
+    {"id": 1, "value": 65536},
+    {"id": 2, "value": 0},
+    {"id": 4, "value": 6291456},
+    {"id": 6, "value": 262144}
+  ],
+  "connectionWindowIncrement": 15663105,
+  "pseudoHeaderOrder": [":method", ":authority", ":scheme", ":path"]
+}

@@ -46,16 +46,17 @@ type browserH2Transport struct {
 	active    [2]int
 }
 
-func usesChrome133HTTP2(settings *internet.MemoryStreamConfig) bool {
+func usesBrowserHTTP2(settings *internet.MemoryStreamConfig) bool {
 	name := ""
 	if config := tls.ConfigFromStreamSettings(settings); config != nil {
 		name = config.Fingerprint
-	}
-	if config := reality.ConfigFromStreamSettings(settings); config != nil {
+	} else if config := reality.ConfigFromStreamSettings(settings); config != nil {
 		name = config.Fingerprint
+	} else {
+		return false
 	}
 	fingerprint := tls.GetFingerprint(name)
-	return fingerprint != nil && strings.EqualFold(fingerprint.Client, "Chrome") && fingerprint.Version == "133"
+	return fingerprint != nil && strings.EqualFold(fingerprint.Client, "Chrome") && (fingerprint.Version == "133" || fingerprint.Version == "155")
 }
 
 func newBrowserH2Transport(dial func(context.Context) (net.Conn, error), keepAlive time.Duration) *browserH2Transport {

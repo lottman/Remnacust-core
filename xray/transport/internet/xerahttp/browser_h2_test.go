@@ -20,6 +20,7 @@ import (
 	"github.com/xtls/xray-core/common/buf"
 	xnet "github.com/xtls/xray-core/common/net"
 	"github.com/xtls/xray-core/transport/internet"
+	"github.com/xtls/xray-core/transport/internet/reality"
 	"github.com/xtls/xray-core/transport/internet/tls"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/hpack"
@@ -292,24 +293,45 @@ func TestBrowserH2DialCancellationAndRetirement(t *testing.T) {
 }
 
 func TestBrowserH2ProfileRequiresMatchingTLS(t *testing.T) {
-	for _, fingerprint := range []string{"", "chrome", "hellochrome_auto", "hellochrome_133"} {
-		settings := &internet.MemoryStreamConfig{SecurityType: "tls", SecuritySettings: &tls.Config{Fingerprint: fingerprint}}
-		resolved := tls.GetFingerprint(fingerprint)
-		expected := resolved != nil && resolved.Client == "Chrome" && resolved.Version == "133"
-		if usesChrome133HTTP2(settings) != expected {
-			t.Fatal("HTTP/2 profile does not match the resolved TLS fingerprint", fingerprint, resolved)
+	for _, security := range []string{"tls", "reality"} {
+		for _, test := range []struct {
+			fingerprint string
+			browser     bool
+		}{
+			{"", true}, {"chrome", true}, {"hellochrome_auto", true}, {"hellochrome_133", true}, {"hellochrome_155", true},
+			{"firefox", false}, {"safari", false}, {"hellochrome_120", false}, {"hellochrome_131", false}, {"randomized", false}, {"golang", false},
+		} {
+			t.Run(security+"/"+test.fingerprint, func(t *testing.T) {
+				settings := &internet.MemoryStreamConfig{ProtocolSettings: &Config{}, SecurityType: security}
+				if security == "tls" {
+					settings.SecuritySettings = &tls.Config{Fingerprint: test.fingerprint}
+				} else {
+					settings.SecuritySettings = &reality.Config{Fingerprint: test.fingerprint}
+				}
+				if usesBrowserHTTP2(settings) != test.browser {
+					t.Fatal("HTTP/2 profile does not match the selected fingerprint")
+				}
+				client := createHTTPClient(xnet.TCPDestination(xnet.LocalHostIP, 443), settings).(*DefaultDialerClient)
+				defer client.Close()
+				_, browser := client.client.Transport.(*browserH2Transport)
+				if browser != test.browser {
+					t.Fatalf("unexpected transport: %T", client.client.Transport)
+				}
+				if !browser {
+					if _, ok := client.client.Transport.(*http2.Transport); !ok {
+						t.Fatalf("unexpected fallback transport: %T", client.client.Transport)
+					}
+				}
+			})
 		}
 	}
-	for _, fingerprint := range []string{"firefox", "safari", "hellochrome_120", "randomized", "golang"} {
-		settings := &internet.MemoryStreamConfig{SecurityType: "tls", SecuritySettings: &tls.Config{Fingerprint: fingerprint}}
-		if usesChrome133HTTP2(settings) {
-			t.Fatal("unsupported TLS profile received a mismatched H2 profile", fingerprint)
-		}
+	if usesBrowserHTTP2(&internet.MemoryStreamConfig{}) {
+		t.Fatal("browser HTTP/2 selected without TLS or REALITY")
 	}
 }
 
 func TestBrowserH2KeepsCertificateVerification(t *testing.T) {
-	for _, fingerprint := range []string{"chrome", "hellochrome_133"} {
+	for _, fingerprint := range []string{"", "chrome", "hellochrome_133", "hellochrome_155"} {
 		t.Run(fingerprint, func(t *testing.T) {
 			var received atomic.Int32
 			server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { received.Add(1) }))
@@ -324,7 +346,7 @@ func TestBrowserH2KeepsCertificateVerification(t *testing.T) {
 			client := createHTTPClient(xnet.TCPDestination(xnet.LocalHostIP, xnet.Port(address.Port)), settings).(*DefaultDialerClient)
 			defer client.Close()
 			_, browser := client.client.Transport.(*browserH2Transport)
-			if browser != usesChrome133HTTP2(settings) {
+			if browser != usesBrowserHTTP2(settings) {
 				t.Fatal("transport does not match the resolved TLS profile")
 			}
 			if !browser {

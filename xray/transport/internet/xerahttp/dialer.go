@@ -341,7 +341,7 @@ func createHTTPClient(dest net.Destination, streamSettings *internet.MemoryStrea
 			IdleConnTimeout: net.ConnIdleTimeout,
 			ReadIdleTimeout: keepAlivePeriod,
 		}
-		if usesChrome133HTTP2(streamSettings) {
+		if usesBrowserHTTP2(streamSettings) {
 			transport = newBrowserH2Transport(dialContext, keepAlivePeriod)
 		}
 	} else {

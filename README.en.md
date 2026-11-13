@@ -36,7 +36,7 @@ Preserve `/opt/remnacust/node/.env`, `SECRET_KEY`, Compose and all private state
 
 Node 1.1.31 contains two separate binaries: custom Core 1.1.19 and stock Xray v26.11.9. The panel's global mode defaults to custom. Default does not support Remnacust extensions; changing modes checks saved policies and quotas without deleting journals or silently removing limits. The editor uses separate custom and pristine upstream WASM/schema assets; browser validation does not prove a native connection works.
 
-- Xera HTTP: `network: "xera-http"` and `xeraHttpSettings`; compatible client and server cores are required. Standard XHTTP is a separate transport.
+- Xera HTTP: `network: "xera-http"` and `xeraHttpSettings`; compatible client and server cores are required. Standard XHTTP is a separate transport. [Admission settings, resource limits and observable behavior](docs/XERA-HTTP.md).
 - Host/tag policies, quotas and user/device speed limits. Additional connections do not increase the allocated budget.
 - Access revocation using the authenticated key without disconnecting other devices behind the same NAT.
 - Compatible runtime updates can preserve connections. Changing a listener, port, transport or process requires planning for interruption.

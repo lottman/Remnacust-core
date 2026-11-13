@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/xtls/xray-core/common/utils"
 	"github.com/xtls/xray-core/transport/internet"
 	"github.com/xtls/xray-core/transport/internet/reality"
 	"github.com/xtls/xray-core/transport/internet/tls"
@@ -13,7 +14,7 @@ import (
 )
 
 var browserMajorVersion = regexp.MustCompile(`(Chrome|Firefox|Edg)/[0-9]+`)
-var browserHintVersion = regexp.MustCompile(`("(?:Chromium|Google Chrome|Microsoft Edge)";v=")[0-9]+(")`)
+var firefoxRevisionVersion = regexp.MustCompile(`\brv:[0-9]+`)
 
 func configForHTTPClient(settings *internet.MemoryStreamConfig) *Config {
 	profile := ""
@@ -62,12 +63,17 @@ func alignHTTPVersion(headers http.Header, explicit map[string]string, profile, 
 	headers.Set("User-Agent", browserMajorVersion.ReplaceAllStringFunc(headers.Get("User-Agent"), func(value string) string {
 		return value[:strings.IndexByte(value, '/')+1] + version
 	}))
+	if profile == "firefox" {
+		headers.Set("User-Agent", firefoxRevisionVersion.ReplaceAllString(headers.Get("User-Agent"), "rv:"+version))
+	}
 	for name := range explicit {
 		if strings.EqualFold(name, "Sec-CH-UA") {
 			return
 		}
 	}
-	if hints := headers.Get("Sec-CH-UA"); hints != "" {
-		headers.Set("Sec-CH-UA", browserHintVersion.ReplaceAllString(hints, "${1}"+version+"${2}"))
+	if hints := headers.Get("Sec-CH-UA"); hints != "" && (profile == "chrome" || profile == "edge") {
+		if major, err := strconv.ParseUint(version, 10, 16); err == nil && major > 0 {
+			headers.Set("Sec-CH-UA", utils.BrowserClientHints(int(major), profile))
+		}
 	}
 }

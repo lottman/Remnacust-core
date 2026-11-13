@@ -53,6 +53,9 @@ type httpSession struct {
 	uploadQueue *uploadQueue
 
 	isFullyConnected *done.Instance
+	removed          *done.Instance
+	requests         int
+	accepted         bool
 }
 
 func isValidRequestPath(requestPath, configuredPath string) bool {
@@ -66,24 +69,23 @@ func isValidRequestPath(requestPath, configuredPath string) bool {
 }
 
 func (h *requestHandler) upsertSession(sessionId string) *httpSession {
-	if h.closed.Load() {
-		return nil
-	}
+	return h.sessionForRequest(sessionId, false)
+}
 
-	currentSessionAny, ok := h.sessions.Load(sessionId)
-	if ok {
-		return currentSessionAny.(*httpSession)
-	}
-
+func (h *requestHandler) sessionForRequest(sessionId string, acquire bool) *httpSession {
 	h.sessionMu.Lock()
 	defer h.sessionMu.Unlock()
 	if h.closed.Load() {
 		return nil
 	}
 
-	currentSessionAny, ok = h.sessions.Load(sessionId)
+	currentSessionAny, ok := h.sessions.Load(sessionId)
 	if ok {
-		return currentSessionAny.(*httpSession)
+		s := currentSessionAny.(*httpSession)
+		if acquire {
+			s.requests++
+		}
+		return s
 	}
 	if !acquireSlot(&h.sessionCount, h.config.serverSessionLimit()) {
 		return nil
@@ -92,6 +94,10 @@ func (h *requestHandler) upsertSession(sessionId string) *httpSession {
 	s := &httpSession{
 		uploadQueue:      NewUploadQueue(h.ln.config.GetNormalizedScMaxBufferedPosts()),
 		isFullyConnected: done.New(),
+		removed:          done.New(),
+	}
+	if acquire {
+		s.requests++
 	}
 
 	h.sessions.Store(sessionId, s)
@@ -107,6 +113,7 @@ func (h *requestHandler) upsertSession(sessionId string) *httpSession {
 			}
 			h.sessionMu.Unlock()
 		case <-s.isFullyConnected.Wait():
+		case <-s.removed.Wait():
 		case <-h.stopped.Wait():
 		}
 	}()
@@ -117,9 +124,20 @@ func (h *requestHandler) upsertSession(sessionId string) *httpSession {
 func (h *requestHandler) deleteSession(id string, session *httpSession) bool {
 	if h.sessions.CompareAndDelete(id, session) {
 		h.sessionCount.Add(-1)
+		session.removed.Close()
 		return true
 	}
 	return false
+}
+
+func (h *requestHandler) releaseSessionRequest(id string, session *httpSession, accepted bool) {
+	h.sessionMu.Lock()
+	defer h.sessionMu.Unlock()
+	session.requests--
+	session.accepted = session.accepted || accepted
+	if session.requests == 0 && !session.accepted && !session.isFullyConnected.Done() && h.deleteSession(id, session) {
+		session.uploadQueue.Close()
+	}
 }
 
 func (h *requestHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
@@ -219,12 +237,14 @@ func (h *requestHandler) ServeHTTP(writer http.ResponseWriter, request *http.Req
 	remoteAddr = http_proto.ApplyTrustedXForwardedFor(request.Header, trustedXFF, remoteAddr)
 
 	var currentSession *httpSession
+	sessionAccepted := false
 	if sessionId != "" {
-		currentSession = h.upsertSession(sessionId)
+		currentSession = h.sessionForRequest(sessionId, true)
 		if currentSession == nil {
 			writer.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
+		defer func() { h.releaseSessionRequest(sessionId, currentSession, sessionAccepted) }()
 	}
 	scMaxEachPostBytes := int(h.ln.config.GetNormalizedScMaxEachPostBytes().To)
 	isUplinkRequest := false
@@ -260,6 +280,7 @@ func (h *requestHandler) ServeHTTP(writer http.ResponseWriter, request *http.Req
 				errors.LogInfoInner(context.Background(), err, "failed to upload (PushReader)")
 				writer.WriteHeader(http.StatusConflict)
 			} else {
+				sessionAccepted = true
 				writer.Header().Set("Cache-Control", "no-store")
 				writer.WriteHeader(http.StatusOK)
 				scStreamUpServerSecs := h.config.GetNormalizedScStreamUpServerSecs()
@@ -445,6 +466,7 @@ func (h *requestHandler) ServeHTTP(writer http.ResponseWriter, request *http.Req
 			writer.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		sessionAccepted = true
 
 		if len(bodyPayload) == 0 {
 
@@ -662,7 +684,8 @@ func ListenXH(ctx context.Context, address net.Address, port net.Port, streamSet
 		handler.localAddr = l.h3listener.Addr()
 
 		l.h3server = &http3.Server{
-			Handler: handler,
+			Handler:        handler,
+			MaxHeaderBytes: l.config.GetNormalizedServerMaxHeaderBytes(),
 		}
 		go func() {
 			if err := l.h3server.ServeListener(l.h3listener); err != nil {

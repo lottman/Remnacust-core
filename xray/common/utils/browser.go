@@ -145,6 +145,13 @@ func getGreasedChUa(majorVersion int, forkName string) string {
 	return strings.Join(shuffledCh, ", ")
 }
 
+func BrowserClientHints(majorVersion int, browser string) string {
+	if majorVersion <= 0 || (browser != "chrome" && browser != "edge") {
+		return ""
+	}
+	return getGreasedChUa(majorVersion, browser)
+}
+
 // The code below provides a coherent default browser user agent string based on a CPU-seeded PRNG.
 var (
 	CurlUA                 = "curl/" + CurlVersion()
