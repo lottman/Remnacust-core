@@ -2,8 +2,10 @@ package reality
 
 import (
 	"context"
+	"errors"
 	"net"
 	"sync"
+	"time"
 
 	goreality "github.com/xtls/reality"
 )
@@ -99,6 +101,7 @@ func (l *ownedListener) release(raw net.Conn) {
 }
 
 func (l *ownedListener) serve() {
+	var retryDelay time.Duration
 	for {
 		select {
 		case l.slots <- struct{}{}:
@@ -108,9 +111,26 @@ func (l *ownedListener) serve() {
 		raw, err := l.Listener.Accept()
 		if err != nil {
 			<-l.slots
+			var temporary net.Error
+			if errors.As(err, &temporary) && temporary.Temporary() {
+				if retryDelay == 0 {
+					retryDelay = 5 * time.Millisecond
+				} else {
+					retryDelay = min(retryDelay*2, time.Second)
+				}
+				timer := time.NewTimer(retryDelay)
+				select {
+				case <-timer.C:
+				case <-l.done:
+					timer.Stop()
+					return
+				}
+				continue
+			}
 			_ = l.stop(err)
 			return
 		}
+		retryDelay = 0
 		l.mu.Lock()
 		if l.closed {
 			l.mu.Unlock()

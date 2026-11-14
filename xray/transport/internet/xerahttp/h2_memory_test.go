@@ -7,6 +7,8 @@ import (
 	stdnet "net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"os/exec"
 	"sync"
 	"testing"
 	"time"
@@ -41,6 +43,7 @@ func (p *h2ScratchProbe) Close() error {
 }
 
 func TestH2ClientUploadScratchBuffers(t *testing.T) {
+	selected := os.Getenv("REMNACUST_H2_SCRATCH_CASE")
 	for _, client := range []struct {
 		name   string
 		upload func(context.Context, stdnet.Conn, io.ReadCloser) error
@@ -89,7 +92,21 @@ func TestH2ClientUploadScratchBuffers(t *testing.T) {
 		}},
 	} {
 		for _, frameSize := range []int{0, 65536} {
-			t.Run(fmt.Sprintf("%s/configured=%d", client.name, frameSize), func(t *testing.T) {
+			name := fmt.Sprintf("%s/configured=%d", client.name, frameSize)
+			if selected != "" && selected != name {
+				continue
+			}
+			t.Run(name, func(t *testing.T) {
+				if selected == "" {
+					ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+					defer cancel()
+					command := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestH2ClientUploadScratchBuffers$", "-test.v")
+					command.Env = append(os.Environ(), "REMNACUST_H2_SCRATCH_CASE="+name)
+					if output, err := command.CombinedOutput(); err != nil {
+						t.Fatalf("isolated HTTP/2 scratch regression: %v\n%s", err, output)
+					}
+					return
+				}
 				config := &Config{}
 				if frameSize != 0 {
 					config.H2Params = []byte(fmt.Sprintf(`{"MaxReadFrameSize":%d}`, frameSize))
@@ -123,6 +140,13 @@ func TestH2ClientUploadScratchBuffers(t *testing.T) {
 				select {
 				case observed := <-body.observed:
 					t.Logf("actual upload Body.Read buffer: len=%d cap=%d", observed[0], observed[1])
+					want := frameSize
+					if want == 0 {
+						want = 16384
+					}
+					if observed[0] != want {
+						t.Errorf("first upload scratch length=%d, want %d", observed[0], want)
+					}
 				case err := <-done:
 					t.Fatalf("upload ended before Body.Read: %v", err)
 				case <-ctx.Done():

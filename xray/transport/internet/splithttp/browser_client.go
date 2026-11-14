@@ -18,10 +18,13 @@ type BrowserDialerClient struct {
 }
 
 func (c *BrowserDialerClient) IsClosed() bool {
-	panic("not implemented yet")
+	return false
 }
 
 func (c *BrowserDialerClient) OpenStream(ctx context.Context, url string, sessionId string, body io.Reader, uploadOnly bool) (io.ReadCloser, net.Addr, net.Addr, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, nil, nil, err
+	}
 	if body != nil {
 		return nil, nil, nil, errors.New("bidirectional streaming for browser dialer not implemented yet")
 	}
@@ -33,7 +36,7 @@ func (c *BrowserDialerClient) OpenStream(ctx context.Context, url string, sessio
 
 	c.transportConfig.FillStreamRequest(request, sessionId, "")
 
-	conn, err := browser_dialer.DialGet(request.URL.String(), request.Header, request.Cookies())
+	conn, err := browser_dialer.DialGetContext(ctx, request.URL.String(), request.Header, request.Cookies())
 	dummyAddr := &net.IPAddr{}
 	if err != nil {
 		return nil, dummyAddr, dummyAddr, err
@@ -43,9 +46,14 @@ func (c *BrowserDialerClient) OpenStream(ctx context.Context, url string, sessio
 }
 
 func (c *BrowserDialerClient) PostPacket(ctx context.Context, url string, sessionId string, seqStr string, payload buf.MultiBuffer) error {
+	if err := ctx.Err(); err != nil {
+		buf.ReleaseMulti(payload)
+		return err
+	}
 	method := c.transportConfig.GetNormalizedUplinkHTTPMethod()
 	request, err := http.NewRequest(method, url, nil)
 	if err != nil {
+		buf.ReleaseMulti(payload)
 		return err
 	}
 
@@ -56,13 +64,14 @@ func (c *BrowserDialerClient) PostPacket(ctx context.Context, url string, sessio
 
 	var bytes []byte
 	if request.Body != nil {
+		defer request.Body.Close()
 		bytes, err = io.ReadAll(request.Body)
 		if err != nil {
 			return err
 		}
 	}
 
-	err = browser_dialer.DialPacket(method, request.URL.String(), request.Header, request.Cookies(), bytes)
+	err = browser_dialer.DialPacketContext(ctx, method, request.URL.String(), request.Header, request.Cookies(), bytes)
 	if err != nil {
 		return err
 	}
