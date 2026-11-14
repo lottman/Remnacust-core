@@ -18,9 +18,9 @@ bash <(curl -fsSL https://raw.githubusercontent.com/lottman/Remnacust-installer/
 | --- | --- |
 | Core | [1.1.21](https://github.com/lottman/Remnacust-core/releases/tag/v1.1.21) |
 | Xray base | [v26.11.9](https://github.com/XTLS/Xray-core/releases/tag/v26.11.9) |
-| Node | [1.1.35](https://github.com/lottman/Remnacust-node/releases/tag/v1.1.35) |
-| Panel and subscription page | [1.1.7.124](https://github.com/lottman/Remnacust-panel/releases/tag/v1.1.7.124) |
-| Installer | [1.2.172](https://github.com/lottman/Remnacust-installer/releases/tag/v1.2.172) |
+| Node | [1.1.36](https://github.com/lottman/Remnacust-node/releases/tag/v1.1.36) |
+| Panel and subscription page | [1.1.7.125](https://github.com/lottman/Remnacust-panel/releases/tag/v1.1.7.125) |
+| Installer | [1.2.173](https://github.com/lottman/Remnacust-installer/releases/tag/v1.2.173) |
 
 The base is published official Xray v26.11.9, commit `676eaf66f8f05d4d558ee7a74b4736623d3feeb9`. Provenance: [REMNACUST-UPSTREAM.json](xray/REMNACUST-UPSTREAM.json); see [Core 1.1.21 changes](docs/releases/1.1.21.md). New source in the branch does not mean the published binary has been updated.
 

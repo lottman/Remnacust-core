@@ -18,9 +18,9 @@ bash <(curl -fsSL https://raw.githubusercontent.com/lottman/Remnacust-installer/
 | --- | --- |
 | Core | [1.1.21](https://github.com/lottman/Remnacust-core/releases/tag/v1.1.21) |
 | Основа Xray | [v26.11.9](https://github.com/XTLS/Xray-core/releases/tag/v26.11.9) |
-| Node | [1.1.35](https://github.com/lottman/Remnacust-node/releases/tag/v1.1.35) |
-| Панель и страница подписки | [1.1.7.124](https://github.com/lottman/Remnacust-panel/releases/tag/v1.1.7.124) |
-| Installer | [1.2.172](https://github.com/lottman/Remnacust-installer/releases/tag/v1.2.172) |
+| Node | [1.1.36](https://github.com/lottman/Remnacust-node/releases/tag/v1.1.36) |
+| Панель и страница подписки | [1.1.7.125](https://github.com/lottman/Remnacust-panel/releases/tag/v1.1.7.125) |
+| Installer | [1.2.173](https://github.com/lottman/Remnacust-installer/releases/tag/v1.2.173) |
 
 Основа — опубликованный официальный Xray v26.11.9, коммит `676eaf66f8f05d4d558ee7a74b4736623d3feeb9`. Происхождение: [REMNACUST-UPSTREAM.json](xray/REMNACUST-UPSTREAM.json); [изменения Core 1.1.21](docs/releases/1.1.21.md). Новые исходники в ветке не означают обновление опубликованного бинарника.
 
