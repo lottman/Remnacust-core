@@ -193,6 +193,7 @@ type Config struct {
 	ServerMaxBufferedBytes int64                  `protobuf:"varint,31,opt,name=serverMaxBufferedBytes,proto3" json:"serverMaxBufferedBytes,omitempty"`
 	ServerMaxSessions      uint32                 `protobuf:"varint,32,opt,name=serverMaxSessions,proto3" json:"serverMaxSessions,omitempty"`
 	H2Params               []byte                 `protobuf:"bytes,33,opt,name=h2Params,proto3" json:"h2Params,omitempty"`
+	Adaptive               *AdaptiveConfig        `protobuf:"bytes,34,opt,name=adaptive,proto3" json:"adaptive,omitempty"`
 	unknownFields          protoimpl.UnknownFields
 	sizeCache              protoimpl.SizeCache
 }
@@ -458,6 +459,73 @@ func (x *Config) GetH2Params() []byte {
 	return nil
 }
 
+func (x *Config) GetAdaptive() *AdaptiveConfig {
+	if x != nil {
+		return x.Adaptive
+	}
+	return nil
+}
+
+type AdaptiveConfig struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Mode          string                 `protobuf:"bytes,1,opt,name=mode,proto3" json:"mode,omitempty"`
+	MinStreams    int32                  `protobuf:"varint,2,opt,name=minStreams,proto3" json:"minStreams,omitempty"`
+	MaxStreams    int32                  `protobuf:"varint,3,opt,name=maxStreams,proto3" json:"maxStreams,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AdaptiveConfig) Reset() {
+	*x = AdaptiveConfig{}
+	mi := &file_transport_internet_xerahttp_config_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AdaptiveConfig) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AdaptiveConfig) ProtoMessage() {}
+
+func (x *AdaptiveConfig) ProtoReflect() protoreflect.Message {
+	mi := &file_transport_internet_xerahttp_config_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AdaptiveConfig.ProtoReflect.Descriptor instead.
+func (*AdaptiveConfig) Descriptor() ([]byte, []int) {
+	return file_transport_internet_xerahttp_config_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *AdaptiveConfig) GetMode() string {
+	if x != nil {
+		return x.Mode
+	}
+	return ""
+}
+
+func (x *AdaptiveConfig) GetMinStreams() int32 {
+	if x != nil {
+		return x.MinStreams
+	}
+	return 0
+}
+
+func (x *AdaptiveConfig) GetMaxStreams() int32 {
+	if x != nil {
+		return x.MaxStreams
+	}
+	return 0
+}
+
 type DownlinkPaddingConfig struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Header        string                 `protobuf:"bytes,1,opt,name=header,proto3" json:"header,omitempty"`
@@ -473,7 +541,7 @@ type DownlinkPaddingConfig struct {
 
 func (x *DownlinkPaddingConfig) Reset() {
 	*x = DownlinkPaddingConfig{}
-	mi := &file_transport_internet_xerahttp_config_proto_msgTypes[3]
+	mi := &file_transport_internet_xerahttp_config_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -485,7 +553,7 @@ func (x *DownlinkPaddingConfig) String() string {
 func (*DownlinkPaddingConfig) ProtoMessage() {}
 
 func (x *DownlinkPaddingConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_transport_internet_xerahttp_config_proto_msgTypes[3]
+	mi := &file_transport_internet_xerahttp_config_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -498,7 +566,7 @@ func (x *DownlinkPaddingConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DownlinkPaddingConfig.ProtoReflect.Descriptor instead.
 func (*DownlinkPaddingConfig) Descriptor() ([]byte, []int) {
-	return file_transport_internet_xerahttp_config_proto_rawDescGZIP(), []int{3}
+	return file_transport_internet_xerahttp_config_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *DownlinkPaddingConfig) GetHeader() string {
@@ -565,7 +633,7 @@ const file_transport_internet_xerahttp_config_proto_rawDesc = "" +
 	"\x0ecMaxReuseTimes\x18\x03 \x01(\v2-.xray.transport.internet.xerahttp.RangeConfigR\x0ecMaxReuseTimes\x12Y\n" +
 	"\x10hMaxRequestTimes\x18\x04 \x01(\v2-.xray.transport.internet.xerahttp.RangeConfigR\x10hMaxRequestTimes\x12Y\n" +
 	"\x10hMaxReusableSecs\x18\x05 \x01(\v2-.xray.transport.internet.xerahttp.RangeConfigR\x10hMaxReusableSecs\x12*\n" +
-	"\x10hKeepAlivePeriod\x18\x06 \x01(\x03R\x10hKeepAlivePeriod\"\xb5\x0e\n" +
+	"\x10hKeepAlivePeriod\x18\x06 \x01(\x03R\x10hKeepAlivePeriod\"\x83\x0f\n" +
 	"\x06Config\x12\x12\n" +
 	"\x04host\x18\x01 \x01(\tR\x04host\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x12\n" +
@@ -600,10 +668,19 @@ const file_transport_internet_xerahttp_config_proto_rawDesc = "" +
 	"\x15customDownlinkPadding\x18\x1e \x01(\v27.xray.transport.internet.xerahttp.DownlinkPaddingConfigR\x15customDownlinkPadding\x126\n" +
 	"\x16serverMaxBufferedBytes\x18\x1f \x01(\x03R\x16serverMaxBufferedBytes\x12,\n" +
 	"\x11serverMaxSessions\x18  \x01(\rR\x11serverMaxSessions\x12\x1a\n" +
-	"\bh2Params\x18! \x01(\fR\bh2Params\x1a:\n" +
+	"\bh2Params\x18! \x01(\fR\bh2Params\x12L\n" +
+	"\badaptive\x18\" \x01(\v20.xray.transport.internet.xerahttp.AdaptiveConfigR\badaptive\x1a:\n" +
 	"\fHeadersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xb7\x02\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"d\n" +
+	"\x0eAdaptiveConfig\x12\x12\n" +
+	"\x04mode\x18\x01 \x01(\tR\x04mode\x12\x1e\n" +
+	"\n" +
+	"minStreams\x18\x02 \x01(\x05R\n" +
+	"minStreams\x12\x1e\n" +
+	"\n" +
+	"maxStreams\x18\x03 \x01(\x05R\n" +
+	"maxStreams\"\xb7\x02\n" +
 	"\x15DownlinkPaddingConfig\x12\x16\n" +
 	"\x06header\x18\x01 \x01(\tR\x06header\x12\x14\n" +
 	"\x05token\x18\x02 \x01(\tR\x05token\x12C\n" +
@@ -630,14 +707,15 @@ func file_transport_internet_xerahttp_config_proto_rawDescGZIP() []byte {
 	return file_transport_internet_xerahttp_config_proto_rawDescData
 }
 
-var file_transport_internet_xerahttp_config_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_transport_internet_xerahttp_config_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_transport_internet_xerahttp_config_proto_goTypes = []any{
 	(*RangeConfig)(nil),           // 0: xray.transport.internet.xerahttp.RangeConfig
 	(*XmuxConfig)(nil),            // 1: xray.transport.internet.xerahttp.XmuxConfig
 	(*Config)(nil),                // 2: xray.transport.internet.xerahttp.Config
-	(*DownlinkPaddingConfig)(nil), // 3: xray.transport.internet.xerahttp.DownlinkPaddingConfig
-	nil,                           // 4: xray.transport.internet.xerahttp.Config.HeadersEntry
-	(*internet.StreamConfig)(nil), // 5: xray.transport.internet.StreamConfig
+	(*AdaptiveConfig)(nil),        // 3: xray.transport.internet.xerahttp.AdaptiveConfig
+	(*DownlinkPaddingConfig)(nil), // 4: xray.transport.internet.xerahttp.DownlinkPaddingConfig
+	nil,                           // 5: xray.transport.internet.xerahttp.Config.HeadersEntry
+	(*internet.StreamConfig)(nil), // 6: xray.transport.internet.StreamConfig
 }
 var file_transport_internet_xerahttp_config_proto_depIdxs = []int32{
 	0,  // 0: xray.transport.internet.xerahttp.XmuxConfig.maxConcurrency:type_name -> xray.transport.internet.xerahttp.RangeConfig
@@ -645,23 +723,24 @@ var file_transport_internet_xerahttp_config_proto_depIdxs = []int32{
 	0,  // 2: xray.transport.internet.xerahttp.XmuxConfig.cMaxReuseTimes:type_name -> xray.transport.internet.xerahttp.RangeConfig
 	0,  // 3: xray.transport.internet.xerahttp.XmuxConfig.hMaxRequestTimes:type_name -> xray.transport.internet.xerahttp.RangeConfig
 	0,  // 4: xray.transport.internet.xerahttp.XmuxConfig.hMaxReusableSecs:type_name -> xray.transport.internet.xerahttp.RangeConfig
-	4,  // 5: xray.transport.internet.xerahttp.Config.headers:type_name -> xray.transport.internet.xerahttp.Config.HeadersEntry
+	5,  // 5: xray.transport.internet.xerahttp.Config.headers:type_name -> xray.transport.internet.xerahttp.Config.HeadersEntry
 	0,  // 6: xray.transport.internet.xerahttp.Config.xPaddingBytes:type_name -> xray.transport.internet.xerahttp.RangeConfig
 	0,  // 7: xray.transport.internet.xerahttp.Config.scMaxEachPostBytes:type_name -> xray.transport.internet.xerahttp.RangeConfig
 	0,  // 8: xray.transport.internet.xerahttp.Config.scMinPostsIntervalMs:type_name -> xray.transport.internet.xerahttp.RangeConfig
 	0,  // 9: xray.transport.internet.xerahttp.Config.scStreamUpServerSecs:type_name -> xray.transport.internet.xerahttp.RangeConfig
 	1,  // 10: xray.transport.internet.xerahttp.Config.xmux:type_name -> xray.transport.internet.xerahttp.XmuxConfig
-	5,  // 11: xray.transport.internet.xerahttp.Config.downloadSettings:type_name -> xray.transport.internet.StreamConfig
+	6,  // 11: xray.transport.internet.xerahttp.Config.downloadSettings:type_name -> xray.transport.internet.StreamConfig
 	0,  // 12: xray.transport.internet.xerahttp.Config.uplinkChunkSize:type_name -> xray.transport.internet.xerahttp.RangeConfig
 	0,  // 13: xray.transport.internet.xerahttp.Config.sessionIDLength:type_name -> xray.transport.internet.xerahttp.RangeConfig
-	3,  // 14: xray.transport.internet.xerahttp.Config.customDownlinkPadding:type_name -> xray.transport.internet.xerahttp.DownlinkPaddingConfig
-	0,  // 15: xray.transport.internet.xerahttp.DownlinkPaddingConfig.bytes:type_name -> xray.transport.internet.xerahttp.RangeConfig
-	0,  // 16: xray.transport.internet.xerahttp.DownlinkPaddingConfig.blockBytes:type_name -> xray.transport.internet.xerahttp.RangeConfig
-	17, // [17:17] is the sub-list for method output_type
-	17, // [17:17] is the sub-list for method input_type
-	17, // [17:17] is the sub-list for extension type_name
-	17, // [17:17] is the sub-list for extension extendee
-	0,  // [0:17] is the sub-list for field type_name
+	4,  // 14: xray.transport.internet.xerahttp.Config.customDownlinkPadding:type_name -> xray.transport.internet.xerahttp.DownlinkPaddingConfig
+	3,  // 15: xray.transport.internet.xerahttp.Config.adaptive:type_name -> xray.transport.internet.xerahttp.AdaptiveConfig
+	0,  // 16: xray.transport.internet.xerahttp.DownlinkPaddingConfig.bytes:type_name -> xray.transport.internet.xerahttp.RangeConfig
+	0,  // 17: xray.transport.internet.xerahttp.DownlinkPaddingConfig.blockBytes:type_name -> xray.transport.internet.xerahttp.RangeConfig
+	18, // [18:18] is the sub-list for method output_type
+	18, // [18:18] is the sub-list for method input_type
+	18, // [18:18] is the sub-list for extension type_name
+	18, // [18:18] is the sub-list for extension extendee
+	0,  // [0:18] is the sub-list for field type_name
 }
 
 func init() { file_transport_internet_xerahttp_config_proto_init() }
@@ -675,7 +754,7 @@ func file_transport_internet_xerahttp_config_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_transport_internet_xerahttp_config_proto_rawDesc), len(file_transport_internet_xerahttp_config_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

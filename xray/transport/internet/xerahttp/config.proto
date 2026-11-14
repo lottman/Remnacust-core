@@ -56,6 +56,13 @@ message Config {
   int64 serverMaxBufferedBytes = 31;
   uint32 serverMaxSessions = 32;
   bytes h2Params = 33;
+  AdaptiveConfig adaptive = 34;
+}
+
+message AdaptiveConfig {
+  string mode = 1;
+  int32 minStreams = 2;
+  int32 maxStreams = 3;
 }
 
 message DownlinkPaddingConfig {

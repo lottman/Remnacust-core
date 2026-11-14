@@ -9,6 +9,7 @@ import (
 )
 
 type XeraHTTPConfig struct {
+	Adaptive               *XeraAdaptiveConfig        `json:"adaptive,omitempty"`
 	ServerMaxBufferedBytes int64                      `json:"serverMaxBufferedBytes"`
 	ServerMaxSessions      uint32                     `json:"serverMaxSessions"`
 	CustomDownlinkPadding  *XeraDownlinkPaddingConfig `json:"customDownlinkPadding"`
@@ -40,6 +41,19 @@ type XeraHTTPConfig struct {
 	DownloadSettings       *StreamConfig              `json:"downloadSettings"`
 	Extra                  json.RawMessage            `json:"extra"`
 	H2Params               json.RawMessage            `json:"h2Params"`
+}
+
+type XeraAdaptiveConfig struct {
+	Mode       string `json:"mode"`
+	MinStreams int32  `json:"minStreams"`
+	MaxStreams int32  `json:"maxStreams"`
+}
+
+func (c *XeraAdaptiveConfig) UnmarshalJSON(data []byte) error {
+	type plain XeraAdaptiveConfig
+	decoder := json.NewDecoder(strings.NewReader(string(data)))
+	decoder.DisallowUnknownFields()
+	return decoder.Decode((*plain)(c))
 }
 
 func (c *XeraHTTPConfig) UnmarshalJSON(data []byte) error {
@@ -344,6 +358,9 @@ func (c *XeraHTTPConfig) Build() (proto.Message, error) {
 			HMaxReusableSecs: newXeraRangeConfig(c.Xmux.HMaxReusableSecs),
 			HKeepAlivePeriod: c.Xmux.HKeepAlivePeriod,
 		},
+	}
+	if c.Adaptive != nil {
+		config.Adaptive = &xerahttp.AdaptiveConfig{Mode: c.Adaptive.Mode, MinStreams: c.Adaptive.MinStreams, MaxStreams: c.Adaptive.MaxStreams}
 	}
 
 	if c.DownloadSettings != nil {

@@ -83,6 +83,7 @@ func TestXeraEditorSchemaIncludesBuilderFields(t *testing.T) {
 				value any
 			}{
 				{"RemnacustCoreXeraHTTPConfig", conf.XeraHTTPConfig{}},
+				{"RemnacustCoreXeraAdaptiveConfig", conf.XeraAdaptiveConfig{}},
 				{"RemnacustCoreXeraDownlinkPaddingConfig", conf.XeraDownlinkPaddingConfig{}},
 				{"RemnacustCoreXeraMuxConfig", conf.XeraMuxConfig{}},
 			} {

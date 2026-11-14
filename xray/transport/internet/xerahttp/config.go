@@ -19,6 +19,13 @@ import (
 )
 
 const (
+	AdaptiveBalanced          = "balanced"
+	AdaptiveLowLatency        = "low-latency"
+	AdaptiveUnstableNetwork   = "unstable-network"
+	DefaultAdaptiveMinStreams = 4
+	DefaultAdaptiveMaxStreams = 32
+	initialAdaptiveStreams    = 8
+
 	maxXPaddingBytes        = 64 << 10
 	maxScEachPostBytes      = 16 << 20
 	maxUplinkChunkSize      = 1 << 20
@@ -37,6 +44,9 @@ const (
 func (c *Config) Validate() error {
 	if c == nil {
 		return fmt.Errorf("XERA-HTTP config is nil")
+	}
+	if err := c.Adaptive.Validate(); err != nil {
+		return err
 	}
 	if c.XPaddingObfsMode {
 		return fmt.Errorf("xPaddingObfsMode was removed; tokenish padding is always enabled")
@@ -134,6 +144,21 @@ func (c *Config) Validate() error {
 		if err := p.Validate(); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func (c *AdaptiveConfig) Validate() error {
+	if c == nil {
+		return nil
+	}
+	switch c.Mode {
+	case AdaptiveBalanced, AdaptiveLowLatency, AdaptiveUnstableNetwork:
+	default:
+		return fmt.Errorf("adaptive.mode must be balanced, low-latency, or unstable-network")
+	}
+	if c.MinStreams < 1 || c.MaxStreams > DefaultAdaptiveMaxStreams || c.MaxStreams < c.MinStreams {
+		return fmt.Errorf("adaptive bounds must satisfy 1 <= minStreams <= maxStreams <= 32")
 	}
 	return nil
 }

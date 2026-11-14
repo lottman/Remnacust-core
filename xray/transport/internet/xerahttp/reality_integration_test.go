@@ -22,6 +22,14 @@ import (
 )
 
 func TestRealityModesRoundTripAndClose(t *testing.T) {
+	testRealityModesRoundTripAndClose(t, nil)
+}
+
+func TestAdaptiveRealityModesRoundTripAndClose(t *testing.T) {
+	testRealityModesRoundTripAndClose(t, &AdaptiveConfig{Mode: AdaptiveBalanced, MinStreams: 4, MaxStreams: 32})
+}
+
+func testRealityModesRoundTripAndClose(t *testing.T, adaptive *AdaptiveConfig) {
 	decoy := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 	}))
@@ -49,7 +57,7 @@ func TestRealityModesRoundTripAndClose(t *testing.T) {
 					},
 				}
 				clientSettings := &internet.MemoryStreamConfig{
-					ProtocolName: protocolName, ProtocolSettings: &Config{Path: "/reality-check", Mode: mode},
+					ProtocolName: protocolName, ProtocolSettings: &Config{Path: "/reality-check", Mode: mode, Adaptive: adaptive},
 					SecurityType: "reality", SecuritySettings: &reality.Config{
 						ServerName: "localhost", Fingerprint: "chrome", PublicKey: key.PublicKey().Bytes(), ShortId: shortID,
 					},

@@ -20,6 +20,14 @@ import (
 )
 
 func TestMixedIPv4IPv6UploadAndDownload(t *testing.T) {
+	testMixedIPv4IPv6UploadAndDownload(t, nil)
+}
+
+func TestAdaptiveMixedIPv4IPv6UploadAndDownload(t *testing.T) {
+	testMixedIPv4IPv6UploadAndDownload(t, &AdaptiveConfig{Mode: AdaptiveBalanced, MinStreams: 1, MaxStreams: 1})
+}
+
+func testMixedIPv4IPv6UploadAndDownload(t *testing.T, adaptive *AdaptiveConfig) {
 	for _, alpn := range []string{"http/1.1", "h2", "h3"} {
 		for _, mode := range []string{ModePacketUp, ModeStreamUp} {
 			for _, pair := range []struct{ upload, download net.Address }{
@@ -53,7 +61,7 @@ func TestMixedIPv4IPv6UploadAndDownload(t *testing.T) {
 					}
 					defer listener.Close()
 					clientTLS := &tls.Config{ServerName: "localhost", PinnedPeerCertSha256: [][]byte{hash[:]}, NextProtocol: []string{alpn}, Fingerprint: "golang"}
-					config := &Config{Path: "/mixed", Mode: mode, DownloadSettings: &internet.StreamConfig{
+					config := &Config{Path: "/mixed", Mode: mode, Adaptive: adaptive, DownloadSettings: &internet.StreamConfig{
 						Address: net.NewIPOrDomain(download), Port: uint32(port), ProtocolName: protocolName,
 						TransportSettings: []*internet.TransportConfig{{ProtocolName: protocolName, Settings: serial.ToTypedMessage(&Config{Path: "/mixed", Mode: mode})}},
 						SecurityType:      serial.GetMessageType(clientTLS), SecuritySettings: []*serial.TypedMessage{serial.ToTypedMessage(clientTLS)},

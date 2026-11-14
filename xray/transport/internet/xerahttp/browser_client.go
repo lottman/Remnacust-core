@@ -14,6 +14,7 @@ import (
 )
 
 type BrowserDialerClient struct {
+	adaptive        *adaptiveController
 	transportConfig *Config
 }
 
@@ -55,9 +56,14 @@ func (c *BrowserDialerClient) OpenStream(ctx context.Context, url string, sessio
 	if body != nil {
 		return nil, nil, nil, errors.New("bidirectional streaming for browser dialer not implemented yet")
 	}
+	lease, err := c.adaptive.acquire(ctx, adaptiveDown)
+	if err != nil {
+		return nil, nil, nil, err
+	}
 
 	request, err := http.NewRequest("GET", url, nil)
 	if err != nil {
+		lease.finish(nil)
 		return nil, nil, nil, err
 	}
 
@@ -66,13 +72,18 @@ func (c *BrowserDialerClient) OpenStream(ctx context.Context, url string, sessio
 	conn, err := browser_dialer.DialGetContext(ctx, request.URL.String(), request.Header, request.Cookies())
 	dummyAddr := &net.IPAddr{}
 	if err != nil {
+		lease.finish(err)
 		return nil, dummyAddr, dummyAddr, err
 	}
 
-	return websocket.NewConnection(conn, dummyAddr, nil, 0), conn.RemoteAddr(), conn.LocalAddr(), nil
+	var reader io.ReadCloser = websocket.NewConnection(conn, dummyAddr, nil, 0)
+	if lease != nil {
+		reader = &adaptiveReader{ReadCloser: reader, lease: lease, direction: adaptiveDown, release: true, confirmOnProgress: true}
+	}
+	return reader, conn.RemoteAddr(), conn.LocalAddr(), nil
 }
 
-func (c *BrowserDialerClient) PostPacket(ctx context.Context, url string, sessionId string, seqStr string, payload buf.MultiBuffer) error {
+func (c *BrowserDialerClient) PostPacket(ctx context.Context, url string, sessionId string, seqStr string, payload buf.MultiBuffer) (result error) {
 	if err := ctx.Err(); err != nil {
 		buf.ReleaseMulti(payload)
 		return err
@@ -81,6 +92,19 @@ func (c *BrowserDialerClient) PostPacket(ctx context.Context, url string, sessio
 		buf.ReleaseMulti(payload)
 		return err
 	}
+	lease, err := c.adaptive.acquire(ctx, adaptiveUp)
+	if err != nil {
+		buf.ReleaseMulti(payload)
+		return err
+	}
+	defer func() {
+		failure := result
+		if ctx.Err() != nil {
+			failure = nil
+		}
+		lease.finish(failure)
+	}()
+	payloadBytes := int(payload.Len())
 	method := c.transportConfig.GetNormalizedUplinkHTTPMethod()
 	request, err := http.NewRequest(method, url, nil)
 	if err != nil {
@@ -107,5 +131,7 @@ func (c *BrowserDialerClient) PostPacket(ctx context.Context, url string, sessio
 		return err
 	}
 
+	lease.confirm()
+	lease.progress(adaptiveUp, payloadBytes)
 	return nil
 }

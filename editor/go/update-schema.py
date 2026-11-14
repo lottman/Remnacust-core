@@ -9,6 +9,22 @@ def write(name,data):
 # Preserve localized documentation while adding the exact current Go config fields.
 definitions = json.loads((Path(sys.argv[1])).read_text(encoding='utf-8'))
 original_xera_properties = copy.deepcopy(definitions['RemnacustCoreXeraHTTPConfig']['properties'])
+
+adaptive = definitions['RemnacustCoreXeraAdaptiveConfig']
+adaptive['required'] = ['mode', 'minStreams', 'maxStreams']
+adaptive['additionalProperties'] = False
+adaptive['properties']['mode'] = {'enum': ['balanced', 'low-latency', 'unstable-network']}
+adaptive['properties']['mode']['description'] = 'Selects measured feedback thresholds without changing the HTTP transport mode.'
+for field, default in [('minStreams', 4), ('maxStreams', 32)]:
+    adaptive['properties'][field] = {'type': 'integer', 'minimum': 1, 'maximum': 32, 'default': default}
+adaptive['properties']['minStreams']['description'] = 'Lower bound of request admission capacity per direction; does not open idle requests.'
+adaptive['properties']['maxStreams']['description'] = 'Upper bound of active HTTP requests per direction across the destination/configuration pool, not a TCP connection limit.'
+adaptive['allOf'] = [
+    {'if': {'properties': {'minStreams': {'const': minimum}}, 'required': ['minStreams']},
+     'then': {'properties': {'maxStreams': {'minimum': minimum}}}}
+    for minimum in range(2, 33)
+]
+adaptive['description'] = 'Client admission budget for active HTTP requests per direction, destination and configuration generation. A stream-one request reserves both directions. Server session, memory and HTTP limits remain independent.'
 tls_versions = ['', '1.0', '1.1', '1.2', '1.3']
 tls_policy = definitions['RemnacustCoreTLSConfig']
 for field in ['minVersion', 'maxVersion']:
@@ -130,8 +146,9 @@ properties['headers'] = {
     'additionalProperties': {'type': 'string', 'pattern': r'^[^\u0000-\u0008\u000A-\u001F\u007F]*$'},
 }
 properties['downloadSettings'] = {'anyOf': [{'type': 'null'}, ref('XeraDownloadSettings')]}
+properties['adaptive'] = {'anyOf': [{'type': 'null'}, ref('XeraAdaptiveConfig')]}
 properties['customDownlinkPadding'] = {'anyOf': [{'type': 'null'}, ref('XeraDownlinkPaddingConfig')]}
-for field in ['downloadSettings', 'customDownlinkPadding']:
+for field in ['downloadSettings', 'customDownlinkPadding', 'adaptive']:
     original_xera_properties[field] = {'type': ['object', 'null']}
 original_xera_properties['xmux'] = {'type': ['object', 'null']}
 for field, (minimum, maximum, default_zero) in {

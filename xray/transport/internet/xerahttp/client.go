@@ -7,6 +7,7 @@ import (
 	"net/http/httptrace"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/apernet/quic-go/http3"
 	"github.com/xtls/xray-core/common"
@@ -24,6 +25,9 @@ type DialerClient interface {
 }
 
 type DefaultDialerClient struct {
+	adaptive        *adaptiveController
+	passiveRTT      func() time.Duration
+	releaseRTT      func()
 	transportConfig *Config
 	client          *http.Client
 	closed          atomic.Bool
@@ -41,6 +45,29 @@ func (c *DefaultDialerClient) OpenStream(ctx context.Context, url string, sessio
 			return nil, nil, nil, err
 		}
 	}
+	mask := adaptiveDown
+	if uploadOnly {
+		mask = adaptiveUp
+	} else if body != nil {
+		mask |= adaptiveUp
+	}
+	lease, err := c.adaptive.acquire(ctx, mask)
+	if err != nil {
+		common.Close(body)
+		return nil, nil, nil, err
+	}
+	if lease != nil {
+		lease.passiveRTT = c.passiveRTT
+	}
+	handedOff := false
+	defer func() {
+		if !handedOff {
+			if lease != nil {
+				common.Close(body)
+			}
+			lease.finish(nil)
+		}
+	}()
 	type dialResult struct {
 		remote net.Addr
 		local  net.Addr
@@ -63,6 +90,14 @@ func (c *DefaultDialerClient) OpenStream(ctx context.Context, url string, sessio
 	method := "GET"
 	if body != nil {
 		method = c.transportConfig.GetNormalizedUplinkHTTPMethod()
+		if lease != nil {
+			lease.requestBodyPending.Store(true)
+			closer, ok := body.(io.ReadCloser)
+			if !ok {
+				closer = io.NopCloser(body)
+			}
+			body = &adaptiveReader{ReadCloser: closer, lease: lease, direction: adaptiveUp, requestBody: true}
+		}
 		if p := c.transportConfig.CustomDownlinkPadding; p != nil && p.Uplink {
 			closer, ok := body.(io.ReadCloser)
 			if !ok {
@@ -83,9 +118,15 @@ func (c *DefaultDialerClient) OpenStream(ctx context.Context, url string, sessio
 		req.Header.Set(padding.Header, padding.wireValue())
 	}
 	w := &WaitReadCloser{Wait: make(chan struct{}), cancel: cancel}
+	handedOff = true
 	go func() {
 		resp, err := c.client.Do(req)
 		if err != nil {
+			failure := err
+			if requestCtx.Err() != nil {
+				failure = nil
+			}
+			lease.finish(failure)
 			if !uploadOnly && requestCtx.Err() == nil {
 				c.closed.Store(true)
 			}
@@ -95,23 +136,33 @@ func (c *DefaultDialerClient) OpenStream(ctx context.Context, url string, sessio
 			return
 		}
 		if resp.StatusCode != http.StatusOK {
+			lease.reject(resp.StatusCode)
 			err := errors.New("XERA-HTTP stream rejected with HTTP status ", resp.StatusCode)
 			notify(dialResult{err: err})
 			resp.Body.Close()
 			common.Close(body)
+			lease.finish(nil)
 			w.Fail(err)
 			return
 		}
 		if uploadOnly {
 			if padding != nil && !padding.matchesHeader(resp.Header) {
+				lease.reject(0)
 				resp.Body.Close()
 				common.Close(body)
+				lease.finish(nil)
 				w.Fail(errors.New("server did not confirm custom uplink padding"))
 				return
 			}
+			lease.confirm()
 			_, readErr := io.Copy(io.Discard, resp.Body)
 			resp.Body.Close()
 			common.Close(body)
+			failure := readErr
+			if requestCtx.Err() != nil {
+				failure = nil
+			}
+			lease.endResponse(failure)
 			if readErr != nil {
 				w.Fail(readErr)
 			} else {
@@ -121,12 +172,18 @@ func (c *DefaultDialerClient) OpenStream(ctx context.Context, url string, sessio
 		}
 		if padding != nil {
 			if !padding.matchesHeader(resp.Header) {
+				lease.reject(0)
 				resp.Body.Close()
 				common.Close(body)
+				lease.finish(nil)
 				w.Fail(errors.New("server did not confirm custom downlink padding"))
 				return
 			}
 			resp.Body = &paddedDownlinkReader{ReadCloser: resp.Body}
+		}
+		lease.confirm()
+		if lease != nil {
+			resp.Body = &adaptiveReader{ReadCloser: resp.Body, lease: lease, direction: adaptiveDown, release: true, ctx: requestCtx, onClose: func() { common.Close(body) }}
 		}
 		w.Set(resp.Body)
 	}()
@@ -146,7 +203,7 @@ func (c *DefaultDialerClient) OpenStream(ctx context.Context, url string, sessio
 		return nil, nil, nil, ctx.Err()
 	}
 }
-func (c *DefaultDialerClient) PostPacket(ctx context.Context, url string, sessionId string, seqStr string, payload buf.MultiBuffer) error {
+func (c *DefaultDialerClient) PostPacket(ctx context.Context, url string, sessionId string, seqStr string, payload buf.MultiBuffer) (result error) {
 	ctx = context.WithValue(ctx, browserH2UploadKey{}, true)
 	padding := c.transportConfig.CustomDownlinkPadding
 	if padding != nil && padding.Uplink {
@@ -159,6 +216,22 @@ func (c *DefaultDialerClient) PostPacket(ctx context.Context, url string, sessio
 			return err
 		}
 	}
+	lease, err := c.adaptive.acquire(ctx, adaptiveUp)
+	if err != nil {
+		buf.ReleaseMulti(payload)
+		return err
+	}
+	if lease != nil {
+		lease.passiveRTT = c.passiveRTT
+	}
+	defer func() {
+		failure := result
+		if ctx.Err() != nil {
+			failure = nil
+		}
+		lease.finish(failure)
+	}()
+	payloadBytes := int(payload.Len())
 	method := c.transportConfig.GetNormalizedUplinkHTTPMethod()
 	req, err := http.NewRequestWithContext(ctx, method, url, nil)
 	if err != nil {
@@ -183,6 +256,10 @@ func (c *DefaultDialerClient) PostPacket(ctx context.Context, url string, sessio
 		}
 		req.GetBody = nil
 	}
+	if lease != nil && req.Body != nil {
+		req.Body = &adaptiveReader{ReadCloser: req.Body}
+		defer req.Body.Close()
+	}
 	client := c.client
 	if c.uploadClient != nil {
 		client = c.uploadClient
@@ -196,16 +273,23 @@ func (c *DefaultDialerClient) PostPacket(ctx context.Context, url string, sessio
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
+		lease.reject(resp.StatusCode)
 		return errors.New("bad status code:", resp.Status)
 	}
 	if padding != nil && !padding.matchesHeader(resp.Header) {
+		lease.reject(0)
 		return errors.New("server did not confirm custom padding")
 	}
+	lease.confirm()
+	lease.progress(adaptiveUp, payloadBytes)
 	_, err = io.Copy(io.Discard, resp.Body)
 	return err
 }
 
 func (c *DefaultDialerClient) Close() error {
+	if c.releaseRTT != nil {
+		defer c.releaseRTT()
+	}
 	c.closed.Store(true)
 	c.client.CloseIdleConnections()
 	if c.uploadClient != nil {

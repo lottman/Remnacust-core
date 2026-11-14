@@ -24,6 +24,18 @@ import (
 // HTTP/2 on the client/CDN leg does not imply streaming request forwarding.
 // A buffering reverse proxy must receive a finite upload before the origin can reply.
 func TestStreamAutoThroughBufferingCDN(t *testing.T) {
+	testStreamAutoThroughBufferingCDN(t, nil)
+}
+
+func TestAdaptiveStreamAutoThroughBufferingCDN(t *testing.T) {
+	for _, mode := range []string{AdaptiveBalanced, AdaptiveLowLatency, AdaptiveUnstableNetwork} {
+		t.Run(mode, func(t *testing.T) {
+			testStreamAutoThroughBufferingCDN(t, &AdaptiveConfig{Mode: mode, MinStreams: 1, MaxStreams: 1})
+		})
+	}
+}
+
+func testStreamAutoThroughBufferingCDN(t *testing.T, adaptive *AdaptiveConfig) {
 	port := tcp.PickPort()
 	originConfig := &internet.MemoryStreamConfig{ProtocolName: "xera-http", ProtocolSettings: &Config{Path: "/cdn", Mode: ModeAuto}}
 	origin, err := ListenXH(context.Background(), net.LocalHostIP, port, originConfig, func(c stat.Connection) {
@@ -56,7 +68,7 @@ func TestStreamAutoThroughBufferingCDN(t *testing.T) {
 	certificateHash := sha256.Sum256(edge.Certificate().Raw)
 	settings := &internet.MemoryStreamConfig{
 		ProtocolName:     "xera-http",
-		ProtocolSettings: &Config{Path: "/cdn", Mode: ModeStreamAuto},
+		ProtocolSettings: &Config{Path: "/cdn", Mode: ModeStreamAuto, Adaptive: adaptive},
 		SecurityType:     "tls",
 		SecuritySettings: &tls.Config{PinnedPeerCertSha256: [][]byte{certificateHash[:]}, NextProtocol: []string{"h2"}}, // loopback test certificate only
 	}

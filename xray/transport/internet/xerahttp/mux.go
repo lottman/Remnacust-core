@@ -62,6 +62,7 @@ func (c *XmuxClient) maybeClose() {
 }
 
 type XmuxManager struct {
+	adaptive    *adaptiveController
 	xmuxConfig  *XmuxConfig
 	concurrency int32
 	connections int32

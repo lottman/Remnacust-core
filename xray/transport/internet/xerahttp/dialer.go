@@ -51,7 +51,7 @@ func removeIdleHTTPClients(now time.Time) {
 		if now.Sub(manager.lastUsed) < net.ConnIdleTimeout {
 			continue
 		}
-		busy := false
+		busy := manager.adaptive.busy()
 		for _, client := range manager.xmuxClients {
 			if client.Running.Load() > 0 || client.LifecycleRefs.Load() > 0 {
 				busy = true
@@ -62,6 +62,7 @@ func removeIdleHTTPClients(now time.Time) {
 			continue
 		}
 		delete(globalDialerMap, key)
+		manager.adaptive.retire()
 		for _, client := range manager.xmuxClients {
 			client.NotUsed.Store(true)
 			client.maybeClose()
@@ -92,8 +93,14 @@ func acquireHTTPClient(ctx context.Context, dest net.Destination, streamSettings
 		return &retiredDialer{}, nil
 	}
 	realityConfig := reality.ConfigFromStreamSettings(streamSettings)
+	transportConfig := streamSettings.ProtocolSettings.(*Config)
+	adaptiveConfig := transportConfig.Adaptive
+	if adaptiveConfig == nil && parent != nil {
+		adaptiveConfig = parent.ProtocolSettings.(*Config).Adaptive
+	}
+	browser := browser_dialer.HasBrowserDialer() && realityConfig == nil
 
-	if browser_dialer.HasBrowserDialer() && realityConfig == nil {
+	if browser && adaptiveConfig == nil {
 		return &BrowserDialerClient{transportConfig: streamSettings.ProtocolSettings.(*Config)}, nil
 	}
 
@@ -112,15 +119,19 @@ func acquireHTTPClient(ctx context.Context, dest net.Destination, streamSettings
 	xmuxManager, found := globalDialerMap[key]
 
 	if !found {
-		transportConfig := streamSettings.ProtocolSettings.(*Config)
 		xmuxConfig := transportConfig.Xmux
 		if xmuxConfig == nil {
 			xmuxConfig = &XmuxConfig{}
 		}
 
 		xmuxManager = NewXmuxManager(xmuxConfig, func() XmuxConn {
-			return createHTTPClient(dest, streamSettings)
+			client := createHTTPClient(dest, streamSettings)
+			if native, ok := client.(*DefaultDialerClient); ok {
+				native.adaptive = xmuxManager.adaptive
+			}
+			return client
 		})
+		xmuxManager.adaptive = newAdaptiveController(adaptiveConfig)
 		if !streamSettings.AddCloseHook(func() {
 			globalDialerAccess.Lock()
 			if globalDialerMap[key] == xmuxManager {
@@ -129,6 +140,7 @@ func acquireHTTPClient(ctx context.Context, dest net.Destination, streamSettings
 			clients := xmuxManager.xmuxClients
 			xmuxManager.xmuxClients = nil
 			globalDialerAccess.Unlock()
+			xmuxManager.adaptive.retire()
 			for _, client := range clients {
 				client.NotUsed.Store(true)
 				client.maybeClose()
@@ -137,6 +149,11 @@ func acquireHTTPClient(ctx context.Context, dest net.Destination, streamSettings
 			return &retiredDialer{}, nil
 		}
 		globalDialerMap[key] = xmuxManager
+	}
+	if browser {
+		xmuxManager.lastUsed = time.Now()
+		scheduleHTTPClientCleanup()
+		return &BrowserDialerClient{transportConfig: transportConfig, adaptive: xmuxManager.adaptive}, nil
 	}
 
 	xmuxClient := xmuxManager.GetXmuxClient(ctx)
@@ -267,6 +284,7 @@ func createHTTPClient(dest net.Destination, streamSettings *internet.MemoryStrea
 	}
 
 	var transport http.RoundTripper
+	var quicConnection atomic.Pointer[quic.Conn]
 
 	if httpVersion == "3" {
 		quicParams := streamSettings.QuicParams
@@ -344,6 +362,7 @@ func createHTTPClient(dest net.Destination, streamSettings *internet.MemoryStrea
 					return nil, err
 				}
 				context.AfterFunc(conn.Context(), func() { tr.Close(); pktConn.Close() })
+				quicConnection.Store(conn)
 
 				switch quicParams.Congestion {
 				case "reno":
@@ -400,6 +419,15 @@ func createHTTPClient(dest net.Destination, streamSettings *internet.MemoryStrea
 		},
 		httpVersion: httpVersion,
 	}
+	if httpVersion == "3" {
+		client.releaseRTT = func() { quicConnection.Store(nil) }
+		client.passiveRTT = func() time.Duration {
+			if connection := quicConnection.Load(); connection != nil {
+				return measuredQUICRTT(connection.ConnectionStats())
+			}
+			return 0
+		}
+	}
 	if httpVersion == "1.1" {
 		uploadTransport := transport.(*http.Transport).Clone()
 		uploadTransport.DisableKeepAlives = false
@@ -410,6 +438,13 @@ func createHTTPClient(dest net.Destination, streamSettings *internet.MemoryStrea
 	}
 
 	return client
+}
+
+func measuredQUICRTT(stats quic.ConnectionStats) time.Duration {
+	if stats.MeanDeviation <= 0 || stats.LatestRTT <= 0 || stats.SmoothedRTT <= 0 {
+		return 0
+	}
+	return stats.SmoothedRTT
 }
 
 func init() {
