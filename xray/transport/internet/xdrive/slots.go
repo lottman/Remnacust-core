@@ -271,7 +271,7 @@ func (w *slotWriter) Write(p []byte) (int, error) {
 
 	w.buf = append(w.buf, p...)
 	for len(w.buf) >= w.size {
-		if err := w.flushLocked(); err != nil {
+		if err := w.flushLocked(false); err != nil {
 			return 0, err
 		}
 	}
@@ -290,7 +290,7 @@ func (w *slotWriter) flushLoop() {
 		case <-ticker.C:
 			w.mu.Lock()
 			if !w.closed && w.err == nil && len(w.buf) > 0 && w.readyToFlush() {
-				w.flushLocked()
+				w.flushLocked(false)
 			}
 			done := w.closed || w.err != nil
 			w.mu.Unlock()
@@ -320,7 +320,7 @@ func (w *slotWriter) readyToFlush() bool {
 // flushLocked sends a segment off buf once a slot is free, which it waits for
 // without w.mu, so that a reader that falls behind holds Write back. w.mu is
 // held
-func (w *slotWriter) flushLocked() error {
+func (w *slotWriter) flushLocked(allowClosing bool) error {
 	w.mu.Unlock()
 	select {
 	case w.slots <- struct{}{}:
@@ -329,6 +329,14 @@ func (w *slotWriter) flushLocked() error {
 		return w.ctx.Err()
 	}
 	w.mu.Lock()
+	if err := w.ctx.Err(); err != nil {
+		<-w.slots
+		return err
+	}
+	if w.closed && !allowClosing {
+		<-w.slots
+		return io.ErrClosedPipe
+	}
 	if w.err != nil || len(w.buf) == 0 {
 		<-w.slots
 		return w.err
@@ -484,7 +492,7 @@ func (w *slotWriter) Close() error {
 	}
 	w.closed = true
 	for len(w.buf) > 0 && w.err == nil {
-		if err := w.flushLocked(); err != nil {
+		if err := w.flushLocked(true); err != nil {
 			w.mu.Unlock()
 			return err
 		}

@@ -135,22 +135,23 @@ func (c *Conn) Close() error {
 			budget = min(budget, time.Until(deadline))
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), budget)
+		defer cancel()
 		stop := context.AfterFunc(ctx, c.cancel)
+		defer stop()
 		c.closeErr = c.writer.Close()
 		c.workers.Wait()
-		stop()
-		if ctx.Err() != nil {
-			c.closeErr = ctx.Err()
-		} else if c.closeErr == nil {
-			c.closeErr = c.backgroundErr
-		}
-		cancel()
 		c.cancel()
 		if c.waitWorkers != nil {
 			c.waitWorkers()
 		}
 		if c.onClose != nil {
 			c.onClose()
+		}
+		deadline, _ := ctx.Deadline()
+		if ctx.Err() != nil || !time.Now().Before(deadline) {
+			c.closeErr = context.DeadlineExceeded
+		} else if c.closeErr == nil {
+			c.closeErr = c.backgroundErr
 		}
 	})
 	return c.closeErr
