@@ -85,6 +85,12 @@ func dialWebSocket(ctx context.Context, dest net.Destination, streamSettings *in
 				if err != nil {
 					return nil, errors.New("failed to dial to dest").Base(err)
 				}
+				transferred := false
+				defer func() {
+					if !transferred {
+						pconn.Close()
+					}
+				}()
 
 				// TLS and apply the handshake
 				cn := tls.UClient(pconn, tlsConfig, fingerprint).(*tls.UConn)
@@ -98,6 +104,7 @@ func dialWebSocket(ctx context.Context, dest net.Destination, streamSettings *in
 						return nil, err
 					}
 				}
+				transferred = true
 				return cn, nil
 			}
 		}

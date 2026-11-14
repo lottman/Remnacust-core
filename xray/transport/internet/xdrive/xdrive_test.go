@@ -296,14 +296,18 @@ func newTestListener(t *testing.T, folder string) *Listener {
 	if err != nil {
 		t.Fatalf("newLocalStorage: %v", err)
 	}
-	return &Listener{
-		ctx:       context.Background(),
+	ctx, cancel := context.WithCancel(context.Background())
+	l := &Listener{
+		ctx:       ctx,
+		cancel:    cancel,
 		storage:   storage,
 		params:    paramsFromConfig(&Config{SessionTtlSeconds: 1}),
 		active:    make(map[string]bool),
 		handled:   make(map[string]time.Time),
 		idleSince: make(map[string]time.Time),
 	}
+	t.Cleanup(func() { l.Close() })
+	return l
 }
 
 func TestCollectAbandoned(t *testing.T) {
@@ -465,6 +469,7 @@ func TestMissingSegment(t *testing.T) {
 	}
 
 	reader := newWALReader(ctx, storage, "hole", p)
+	defer func() { cancel(); reader.wait() }()
 	select {
 	case _, ok := <-reader.ch:
 		if ok {
@@ -491,6 +496,7 @@ func TestIdleStreamWaits(t *testing.T) {
 
 	p := paramsFromConfig(&Config{PollIntervalMs: 5, MaxPollIntervalMs: 20, HoleTimeoutMs: 100})
 	reader := newWALReader(ctx, storage, "idle", p)
+	defer func() { cancel(); reader.wait() }()
 
 	time.Sleep(400 * time.Millisecond)
 	if err := storage.Put(ctx, objectName("idle", 0, segSuffix), []byte("late")); err != nil {
@@ -528,6 +534,7 @@ func TestFailureMarker(t *testing.T) {
 	}
 
 	reader := newWALReader(ctx, storage, "broken", p)
+	defer func() { cancel(); reader.wait() }()
 
 	select {
 	case data, ok := <-reader.ch:
@@ -581,6 +588,7 @@ func TestInlinePayload(t *testing.T) {
 	defer cancel()
 
 	reader := newWALReader(ctx, storage, "inline", paramsFromConfig(&Config{PollIntervalMs: 5}))
+	defer func() { cancel(); reader.wait() }()
 	select {
 	case data, ok := <-reader.ch:
 		if !ok {

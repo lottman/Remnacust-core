@@ -173,12 +173,12 @@ func (c *UConn) ConnectionState() tls.ConnectionState {
 }
 
 func UClient(c net.Conn, config *tls.Config, fingerprint *utls.ClientHelloID) net.Conn {
-	utlsConn := utls.UClient(c, copyConfig(config), *fingerprint)
+	utlsConn := newUTLSClient(c, config, *fingerprint)
 	return &UConn{UConn: utlsConn}
 }
 
 func GeneraticUClient(c net.Conn, config *tls.Config) *utls.UConn {
-	return utls.UClient(c, copyConfig(config), utls.HelloChrome_Auto)
+	return newUTLSClient(c, config, utls.HelloChrome_Auto)
 }
 
 func copyConfig(c *tls.Config) *utls.Config {
@@ -191,6 +191,9 @@ func copyConfig(c *tls.Config) *utls.Config {
 		KeyLogWriter:                   c.KeyLogWriter,
 		EncryptedClientHelloConfigList: c.EncryptedClientHelloConfigList,
 		NextProtos:                     c.NextProtos,
+		MinVersion:                     c.MinVersion,
+		MaxVersion:                     c.MaxVersion,
+		DynamicRecordSizingDisabled:    c.DynamicRecordSizingDisabled,
 	}
 	if c.GetClientCertificate != nil {
 		config.GetClientCertificate = func(info *utls.CertificateRequestInfo) (*utls.Certificate, error) {

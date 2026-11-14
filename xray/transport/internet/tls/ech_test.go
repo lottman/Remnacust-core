@@ -7,6 +7,7 @@ import (
 	gotls "crypto/tls"
 	"crypto/x509"
 	"encoding/binary"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -19,6 +20,7 @@ import (
 	"time"
 
 	"github.com/miekg/dns"
+	utls "github.com/refraction-networking/utls"
 	"github.com/xtls/xray-core/common/protocol/tls/cert"
 	"golang.org/x/crypto/cryptobyte"
 )
@@ -126,6 +128,52 @@ func TestECHDial(t *testing.T) {
 		})
 	}
 	wg.Wait()
+	for _, bounds := range []struct {
+		name    string
+		minimum uint16
+		maximum uint16
+		reject  bool
+	}{{"default", 0, 0, false}, {"only13", gotls.VersionTLS13, gotls.VersionTLS13, false}, {"maximum12", 0, gotls.VersionTLS12, true}} {
+		t.Run(fmt.Sprintf("utls-versions-%s", bounds.name), func(t *testing.T) {
+			tlsConfig := config.GetTLSConfig()
+			tlsConfig.RootCAs = pool
+			tlsConfig.NextProtos = []string{"http/1.1"}
+			tlsConfig.MinVersion, tlsConfig.MaxVersion = bounds.minimum, bounds.maximum
+			transport := &http.Transport{DialTLSContext: func(ctx context.Context, network, address string) (net.Conn, error) {
+				var dialer net.Dialer
+				raw, err := dialer.DialContext(ctx, network, address)
+				if err != nil {
+					return nil, err
+				}
+				client := UClient(raw, tlsConfig, &utls.HelloChrome_155).(*UConn)
+				if err := client.WebsocketHandshakeContext(ctx); err != nil {
+					client.Close()
+					return nil, err
+				}
+				return client, nil
+			}}
+			defer transport.CloseIdleConnections()
+			client := &http.Client{Transport: transport, Timeout: 5 * time.Second}
+			response, err := client.Get(server.URL)
+			if bounds.reject {
+				if response != nil {
+					response.Body.Close()
+				}
+				if err == nil || !strings.Contains(strings.ToLower(err.Error()), "version") {
+					t.Fatalf("ECH ignored incompatible TLS version bound: %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer response.Body.Close()
+			body, err := io.ReadAll(response.Body)
+			if err != nil || response.StatusCode != http.StatusOK || !strings.Contains(string(body), "encrypted client hello accepted") {
+				t.Fatalf("uTLS ECH failed: status=%d error=%v", response.StatusCode, err)
+			}
+		})
+	}
 	cached, ok := GlobalECHConfigCache.Load(cacheKey)
 	if !ok {
 		t.Fatal("ECH config not cached")

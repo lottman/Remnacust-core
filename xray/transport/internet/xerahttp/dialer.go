@@ -170,9 +170,13 @@ func createHTTPClient(dest net.Destination, streamSettings *internet.MemoryStrea
 	}
 
 	var gotlsConfig *gotls.Config
+	browserHTTP2 := httpVersion == "2" && usesBrowserHTTP2(streamSettings)
 
 	if tlsConfig != nil {
 		gotlsConfig = tlsConfig.GetTLSConfig(tls.WithDestination(dest))
+		if browserHTTP2 {
+			gotlsConfig.DynamicRecordSizingDisabled = true
+		}
 	}
 
 	transportConfig := configForHTTPClient(streamSettings)
@@ -192,9 +196,8 @@ func createHTTPClient(dest net.Destination, streamSettings *internet.MemoryStrea
 		}
 
 		if realityConfig != nil {
-			secured, err := reality.UClient(conn, realityConfig, ctxInner, dest)
+			secured, err := reality.UClientWithRecordSizing(conn, realityConfig, ctxInner, dest, browserHTTP2)
 			if err != nil {
-				conn.Close()
 				return nil, err
 			}
 			if err := validateRealityHTTPALPN(httpVersion, secured.(*reality.UConn).ConnectionState().NegotiatedProtocol); err != nil {
@@ -341,7 +344,7 @@ func createHTTPClient(dest net.Destination, streamSettings *internet.MemoryStrea
 			IdleConnTimeout: net.ConnIdleTimeout,
 			ReadIdleTimeout: keepAlivePeriod,
 		}
-		if usesBrowserHTTP2(streamSettings) {
+		if browserHTTP2 {
 			transport = newBrowserH2Transport(dialContext, keepAlivePeriod)
 		}
 	} else {

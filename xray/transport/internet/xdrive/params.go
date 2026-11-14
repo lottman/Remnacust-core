@@ -1,6 +1,10 @@
 package xdrive
 
-import "time"
+import (
+	"time"
+
+	"google.golang.org/protobuf/proto"
+)
 
 const (
 	defaultSegmentBytes    = 512 * 1024
@@ -73,7 +77,7 @@ func paramsFromConfig(c *Config) params {
 // keep the defaults above because their concurrency and flush mean other things
 func paramsForStorage(c *Config, storage Storage) params {
 	if _, ok := storage.(slotStore); ok {
-		cc := *c
+		cc := proto.Clone(c).(*Config)
 		if cc.Concurrency == 0 {
 			cc.Concurrency = 64
 		}
@@ -83,7 +87,7 @@ func paramsForStorage(c *Config, storage Storage) params {
 		if cc.MaxPollIntervalMs == 0 {
 			cc.MaxPollIntervalMs = 200
 		}
-		c = &cc
+		c = cc
 	}
 	return paramsFromConfig(c)
 }

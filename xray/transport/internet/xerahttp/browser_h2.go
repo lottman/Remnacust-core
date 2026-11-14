@@ -128,6 +128,7 @@ func (t *browserH2Transport) acquire(ctx context.Context, authority string, dire
 			raw, err := t.dial(dialCtx)
 			var wire *fhttp2.ClientConn
 			if err == nil {
+				raw = newBrowserH2WriteConn(raw)
 				stopClose := context.AfterFunc(dialCtx, func() { raw.Close() })
 				raw.SetWriteDeadline(time.Now().Add(16 * time.Second))
 				wire, err = t.wire.NewClientConn(newBrowserH2Guard(raw))

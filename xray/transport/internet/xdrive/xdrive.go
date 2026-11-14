@@ -246,11 +246,15 @@ func Dial(ctx context.Context, dest net.Destination, streamSettings *internet.Me
 		})
 		writer := conn.writer.(*slotWriter)
 		writer.first = make(chan []byte, 1)
+		conn.workers.Add(1)
 		go func() {
+			defer conn.workers.Done()
 			var first []byte
 			select {
 			case first = <-writer.first:
 			case <-time.After(25 * time.Millisecond):
+			case <-conn.ctx.Done():
+				return
 			}
 			announce, _ := json.Marshal(r)
 			if len(first) > 0 && len(first) <= slotInlineLimit {
@@ -261,8 +265,9 @@ func Dial(ctx context.Context, dest net.Destination, streamSettings *internet.Me
 				}
 			}
 			// An announce failure surfaces as a connection error on the next Write/Read.
-			if err := storage.Put(context.Background(), announceName(session, time.Now()), announce); err != nil {
+			if err := storage.Put(conn.ctx, announceName(session, time.Now()), announce); err != nil {
 				err = errors.New("failed to announce session ", session).Base(err)
+				conn.backgroundErr = err
 				writer.fail(err)
 				conn.reader.(*slotReader).setErr(err)
 			}
@@ -327,6 +332,13 @@ type Listener struct {
 	idleSince      map[string]time.Time
 	announceWarned map[string]bool
 	firstSeen      map[string]time.Time
+	workers        sync.WaitGroup
+	workerMu       sync.Mutex
+	stopping       bool
+	closed         bool
+	connections    map[*Conn]struct{}
+	closeOnce      sync.Once
+	closeErr       error
 }
 
 func Serve(ctx context.Context, address net.Address, port net.Port, streamSettings *internet.MemoryStreamConfig, addConn internet.ConnHandler) (internet.Listener, error) {
@@ -391,7 +403,7 @@ func (l *Listener) acceptLoop(logCtx context.Context) {
 }
 
 func (l *Listener) acceptPending(logCtx context.Context) (bool, error) {
-	sessions, err := l.storage.List(l.ctx, sessionsDir)
+	sessions, err := l.list(sessionsDir)
 	if err != nil {
 		return false, err
 	}
@@ -417,12 +429,15 @@ func (l *Listener) acceptPending(logCtx context.Context) (bool, error) {
 	l.mu.Unlock()
 
 	for _, listed := range sessions {
+		if err := l.ctx.Err(); err != nil {
+			return accepted, err
+		}
 		entry := listed.Name
 		full := sessionsDir + "/" + entry
 
 		session, _, ok := parseAnnounce(entry)
 		if !ok {
-			go l.drop(full)
+			l.dropAsync(full)
 			continue
 		}
 		l.mu.Lock()
@@ -430,12 +445,12 @@ func (l *Listener) acceptPending(logCtx context.Context) (bool, error) {
 		l.mu.Unlock()
 		if age > l.sessionTTL {
 			errors.LogInfo(logCtx, "dropping the stale announcement of session ", session)
-			go l.drop(full)
+			l.dropAsync(full)
 			l.mu.Lock()
 			protected := l.active[session] || !l.handled[session].IsZero()
 			l.mu.Unlock()
 			if !protected {
-				go l.drop(sessionPrefix(session))
+				l.dropAsync(sessionPrefix(session))
 			}
 			continue
 		}
@@ -445,7 +460,7 @@ func (l *Listener) acceptPending(logCtx context.Context) (bool, error) {
 		announce := listed.Inline
 		if len(announce) == 0 {
 			if _, ok := sessionStorage(l.storage).(slotStore); ok {
-				announce, err = l.storage.Get(context.WithValue(l.ctx, maxBodyKey{}, int64(driveMaxAnnounce)), full)
+				announce, err = l.getAnnouncement(full)
 				if err != nil {
 					l.mu.Lock()
 					delete(l.active, session)
@@ -460,15 +475,54 @@ func (l *Listener) acceptPending(logCtx context.Context) (bool, error) {
 				}
 			}
 		}
-		go l.drop(full)
-		accepted = true
-		l.addConn(l.newSessionConn(logCtx, session, announce))
+		l.dropAsync(full)
+		if conn := l.newSessionConn(logCtx, session, announce); conn != nil {
+			accepted = true
+			l.addConn(conn)
+		}
 	}
 	return accepted, nil
 }
 
-func (l *Listener) drop(name string) {
-	l.storage.Delete(l.ctx, name)
+func (l *Listener) beginStorage() bool {
+	l.workerMu.Lock()
+	defer l.workerMu.Unlock()
+	if l.stopping {
+		return false
+	}
+	l.workers.Add(1)
+	return true
+}
+
+func (l *Listener) list(prefix string) ([]Entry, error) {
+	if !l.beginStorage() {
+		return nil, context.Canceled
+	}
+	defer l.workers.Done()
+	return l.storage.List(l.ctx, prefix)
+}
+
+func (l *Listener) getAnnouncement(name string) ([]byte, error) {
+	if !l.beginStorage() {
+		return nil, context.Canceled
+	}
+	defer l.workers.Done()
+	return l.storage.Get(context.WithValue(l.ctx, maxBodyKey{}, int64(driveMaxAnnounce)), name)
+}
+
+func (l *Listener) drop(name string) error {
+	if !l.beginStorage() {
+		return context.Canceled
+	}
+	defer l.workers.Done()
+	return l.storage.Delete(l.ctx, name)
+}
+
+func (l *Listener) dropAsync(name string) {
+	if !l.beginStorage() {
+		return
+	}
+	go func() { defer l.workers.Done(); l.storage.Delete(l.ctx, name) }()
 }
 
 func (l *Listener) claim(session string) bool {
@@ -485,21 +539,35 @@ func (l *Listener) claim(session string) bool {
 // newSessionConn takes a session in the slots that its announcement has, or
 // in segments if it has none
 func (l *Listener) newSessionConn(logCtx context.Context, session string, announce []byte) *Conn {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.closed {
+		return nil
+	}
 	storage := sessionStorage(l.storage)
+	var conn *Conn
 	onClose := func() {
 		storage.Close()
 		l.mu.Lock()
 		delete(l.active, session)
+		delete(l.connections, conn)
 		l.mu.Unlock()
 	}
 	if slots, ok := storage.(slotStore); ok {
 		if r, ok := decodeRing(announce); ok {
 			errors.LogInfo(logCtx, "accepted session ", session, " in ", len(r.Down.Slots), " slots")
-			return newSlotConn(l.ctx, slots, r.Down, r.Up, l.params, r.First, onClose)
+			conn = newSlotConn(l.ctx, slots, r.Down, r.Up, l.params, r.First, onClose)
 		}
 	}
-	errors.LogInfo(logCtx, "accepted session ", session)
-	return newConn(l.ctx, storage, downlinkPrefix(session), uplinkPrefix(session), l.params, onClose)
+	if conn == nil {
+		errors.LogInfo(logCtx, "accepted session ", session)
+		conn = newConn(l.ctx, storage, downlinkPrefix(session), uplinkPrefix(session), l.params, onClose)
+	}
+	if l.connections == nil {
+		l.connections = make(map[*Conn]struct{})
+	}
+	l.connections[conn] = struct{}{}
+	return conn
 }
 
 func (l *Listener) collectLoop(logCtx context.Context) {
@@ -517,7 +585,7 @@ func (l *Listener) collectLoop(logCtx context.Context) {
 }
 
 func (l *Listener) collect() error {
-	sessions, err := l.storage.List(l.ctx, streamsDir)
+	sessions, err := l.list(streamsDir)
 	if err != nil {
 		return err
 	}
@@ -558,7 +626,7 @@ func (l *Listener) collect() error {
 
 	var first error
 	for _, session := range expired {
-		if err := l.storage.Delete(l.ctx, sessionPrefix(session)); err != nil && first == nil {
+		if err := l.drop(sessionPrefix(session)); err != nil && first == nil {
 			first = err
 		}
 	}
@@ -570,6 +638,23 @@ func (l *Listener) Addr() net.Addr {
 }
 
 func (l *Listener) Close() error {
-	l.cancel()
-	return l.storage.Close()
+	l.closeOnce.Do(func() {
+		l.workerMu.Lock()
+		l.stopping = true
+		l.cancel()
+		l.workerMu.Unlock()
+		l.mu.Lock()
+		l.closed = true
+		connections := make([]*Conn, 0, len(l.connections))
+		for conn := range l.connections {
+			connections = append(connections, conn)
+		}
+		l.mu.Unlock()
+		l.workers.Wait()
+		for _, conn := range connections {
+			conn.Close()
+		}
+		l.closeErr = l.storage.Close()
+	})
+	return l.closeErr
 }

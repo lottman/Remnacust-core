@@ -9,6 +9,15 @@ def write(name,data):
 # Preserve localized documentation while adding the exact current Go config fields.
 definitions = json.loads((Path(sys.argv[1])).read_text(encoding='utf-8'))
 original_xera_properties = copy.deepcopy(definitions['RemnacustCoreXeraHTTPConfig']['properties'])
+tls_versions = ['', '1.0', '1.1', '1.2', '1.3']
+tls_policy = definitions['RemnacustCoreTLSConfig']
+for field in ['minVersion', 'maxVersion']:
+    tls_policy['properties'][field] = {'type': 'string', 'enum': tls_versions}
+tls_policy['allOf'] = [
+    {'if': {'required': ['minVersion'], 'properties': {'minVersion': {'const': version}}},
+     'then': {'properties': {'maxVersion': {'enum': ['', *tls_versions[index:]]}}}}
+    for index, version in enumerate(tls_versions) if version
+]
 def zero_or_range(minimum, maximum):
     return {'oneOf': [{'const': 0}, {'type': 'integer', 'minimum': minimum, 'maximum': maximum}]}
 http2_properties = {
@@ -239,6 +248,8 @@ for language in ['', '.cn']:
             defs[old].setdefault('properties',{}).setdefault(key,value)
     # The current native core does not implement this old TLS bypass.
     defs['TLSObject']['properties'].pop('allowInsecure',None)
+    merge_props(defs['TLSObject']['properties'], {field: tls_policy['properties'][field] for field in ['minVersion', 'maxVersion']})
+    defs['TLSObject']['allOf'] = list({json.dumps(value, sort_keys=True): value for value in [*defs['TLSObject'].get('allOf', []), *tls_policy['allOf']]}.values())
     source=json.loads((CORE/'xray/REMNACUST-UPSTREAM.json').read_text(encoding='utf-8'))
     schema['x-remnacust-upstream']={'version':source['upstreamVersion'],'commit':source['upstreamCommit'],
         'patchCommit':source.get('upstreamPatchCommit'),'coreVersion':source['version']}

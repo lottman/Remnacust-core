@@ -18,8 +18,12 @@ import (
 )
 
 func TestPacketUploadRanges(t *testing.T) {
-	for _, interval := range []*RangeConfig{{From: -1, To: -1}, {From: 0, To: 100}} {
-		t.Run(strconv.Itoa(int(interval.From)), func(t *testing.T) {
+	for _, interval := range []*RangeConfig{nil, {From: -1, To: -1}, {From: 0, To: 100}} {
+		name := "default"
+		if interval != nil {
+			name = strconv.Itoa(int(interval.From))
+		}
+		t.Run(name, func(t *testing.T) {
 			type post struct {
 				seq  int
 				data []byte
@@ -47,7 +51,13 @@ func TestPacketUploadRanges(t *testing.T) {
 				posts <- post{seq: seq, data: data, at: time.Now()}
 			}))
 			defer server.Close()
-			config := &Config{Mode: "packet-up", UplinkDataPlacement: PlacementBody, ScMaxEachPostBytes: &RangeConfig{From: 8192, To: 16384}, ScMinPostsIntervalMs: &RangeConfig{From: interval.From, To: interval.To}}
+			config := &Config{Mode: "packet-up", UplinkDataPlacement: PlacementBody, ScMaxEachPostBytes: &RangeConfig{From: 8192, To: 16384}, ScMinPostsIntervalMs: interval}
+			if interval == nil {
+				value := config.GetNormalizedScMinPostsIntervalMs()
+				if value.From >= value.To || value.From+value.To != 60 {
+					t.Fatal("default pacing must vary while preserving its 30 ms midpoint")
+				}
+			}
 			settings := &internet.MemoryStreamConfig{ProtocolName: "xera-http", ProtocolSettings: config}
 			port := net.Port(server.Listener.Addr().(*stdnet.TCPAddr).Port)
 			conn, err := Dial(context.Background(), net.TCPDestination(net.LocalHostIP, port), settings)
@@ -101,7 +111,7 @@ func TestPacketUploadRanges(t *testing.T) {
 			if len(sizes) < 2 {
 				t.Error("POST size range sampled only once for the session")
 			}
-			if interval.From == 0 && received[len(received)-1].at.Sub(received[0].at) < 100*time.Millisecond {
+			if (interval == nil || interval.From == 0) && received[len(received)-1].at.Sub(received[0].at) < 100*time.Millisecond {
 				t.Error("positive interval range ignored because its lower bound is zero")
 			}
 		})

@@ -12,13 +12,20 @@ import (
 
 var placeholderAddr = &net.TCPAddr{IP: net.IP{127, 0, 0, 1}, Port: 0}
 
+const closeBudget = 30 * time.Second
+
 // Conn is a session in segments, walWriter and walReader, or in slots,
 // slotWriter and slotReader
 type Conn struct {
-	cancel  context.CancelFunc
-	writer  io.WriteCloser
-	reader  chunkReader
-	onClose func()
+	ctx           context.Context
+	cancel        context.CancelFunc
+	writer        io.WriteCloser
+	reader        chunkReader
+	onClose       func()
+	waitWorkers   func()
+	workers       sync.WaitGroup
+	backgroundErr error
+	closeTimeout  time.Duration
 
 	readBuf []byte
 
@@ -39,21 +46,31 @@ type chunkReader interface {
 
 func newConn(ctx context.Context, storage Storage, writePrefix, readPrefix string, p params, onClose func()) *Conn {
 	ctx, cancel := context.WithCancel(ctx)
+	writer := newWALWriter(ctx, storage, writePrefix, p)
+	reader := newWALReader(ctx, storage, readPrefix, p)
 	return &Conn{
-		cancel:  cancel,
-		writer:  newWALWriter(ctx, storage, writePrefix, p),
-		reader:  newWALReader(ctx, storage, readPrefix, p),
-		onClose: onClose,
+		ctx:          ctx,
+		cancel:       cancel,
+		writer:       writer,
+		reader:       reader,
+		onClose:      onClose,
+		waitWorkers:  func() { writer.wait(); reader.wait() },
+		closeTimeout: closeBudget,
 	}
 }
 
 func newSlotConn(ctx context.Context, store slotStore, write, read slotTable, p params, first []byte, onClose func()) *Conn {
 	ctx, cancel := context.WithCancel(ctx)
+	writer := newSlotWriter(ctx, store, write, p)
+	reader := newSlotReader(ctx, store, read, p, first)
 	return &Conn{
-		cancel:  cancel,
-		writer:  newSlotWriter(ctx, store, write, p),
-		reader:  newSlotReader(ctx, store, read, p, first),
-		onClose: onClose,
+		ctx:          ctx,
+		cancel:       cancel,
+		writer:       writer,
+		reader:       reader,
+		onClose:      onClose,
+		waitWorkers:  func() { writer.wait(); reader.wait() },
+		closeTimeout: closeBudget,
 	}
 }
 
@@ -110,8 +127,28 @@ func (c *Conn) Write(b []byte) (int, error) {
 
 func (c *Conn) Close() error {
 	c.closeOnce.Do(func() {
+		budget := c.closeTimeout
+		if budget <= 0 {
+			budget = closeBudget
+		}
+		if deadline := c.getDeadline(false); !deadline.IsZero() {
+			budget = min(budget, time.Until(deadline))
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), budget)
+		stop := context.AfterFunc(ctx, c.cancel)
 		c.closeErr = c.writer.Close()
+		c.workers.Wait()
+		stop()
+		if ctx.Err() != nil {
+			c.closeErr = ctx.Err()
+		} else if c.closeErr == nil {
+			c.closeErr = c.backgroundErr
+		}
+		cancel()
 		c.cancel()
+		if c.waitWorkers != nil {
+			c.waitWorkers()
+		}
 		if c.onClose != nil {
 			c.onClose()
 		}

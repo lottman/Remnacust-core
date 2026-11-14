@@ -21,6 +21,8 @@ jobs:
       - run: go test -race ./infra/conf ./core ./app/dispatcher ./app/stats ./app/stats/command ./main/commands/all/api ./app/proxyman/inbound ./app/proxyman/outbound ./app/proxyman/command ./app/router/command ./common/mux ./proxy/freedom ./transport/internet ./transport/internet/grpc ./transport/internet/splithttp ./transport/internet/xerahttp ./transport/internet/hysteria ./transport/internet/tls ./transport/internet/reality
       - name: Preserve existing explicit inbound management semantics
         run: go test ./testing/scenarios -run TestCommander -count=1
+      - name: Verify shared TLS policy consumers
+        run: go test -race ./transport/internet/tcp ./transport/internet/websocket ./transport/internet/httpupgrade ./transport/internet/xdrive ./transport/internet/masque ./transport/internet/finalmask/xdns
       - name: Verify published WireGuard, MASQUE and XDNS compatibility
         run: go test -race ./proxy/masque ./proxy/wireguard ./proxy/tun ./transport/internet/masque ./transport/internet/finalmask/xdns
       - name: Compile browser configuration validator against current core
@@ -70,3 +72,16 @@ jobs:
       - run: python3 ../tests/device-revoke.integration.py /tmp/remnacust-xray
       - run: go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
       - run: govulncheck ./...
+  windows-transport-cleanup:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: xray
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.4'
+          cache-dependency-path: xray/go.sum
+      - run: go test -count=1 ./transport/internet/tls ./transport/internet/tcp ./transport/internet/websocket ./transport/internet/httpupgrade
+      - run: go test -count=3 ./transport/internet/xdrive

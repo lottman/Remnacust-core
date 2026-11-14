@@ -335,8 +335,8 @@ func (c *Config) GetNormalizedScMaxEachPostBytes() *RangeConfig {
 func (c *Config) GetNormalizedScMinPostsIntervalMs() *RangeConfig {
 	if c.ScMinPostsIntervalMs == nil || c.ScMinPostsIntervalMs.To == 0 {
 		return &RangeConfig{
-			From: 30,
-			To:   30,
+			From: 20,
+			To:   40,
 		}
 	}
 

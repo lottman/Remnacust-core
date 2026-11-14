@@ -140,16 +140,31 @@ func (c *UConn) VerifyPeerCertificate(rawCerts [][]byte, verifiedChains [][]*x50
 }
 
 func UClient(c net.Conn, config *Config, ctx context.Context, dest net.Destination) (net.Conn, error) {
+	return uClient(c, config, ctx, dest, false)
+}
+
+func UClientWithRecordSizing(c net.Conn, config *Config, ctx context.Context, dest net.Destination, disableDynamicRecordSizing bool) (net.Conn, error) {
+	return uClient(c, config, ctx, dest, disableDynamicRecordSizing)
+}
+
+func uClient(c net.Conn, config *Config, ctx context.Context, dest net.Destination, disableDynamicRecordSizing bool) (net.Conn, error) {
+	owned := true
+	defer func() {
+		if owned {
+			c.Close()
+		}
+	}()
 	localAddr := c.LocalAddr().String()
 	uConn := &UConn{
 		Config: config,
 	}
 	utlsConfig := &utls.Config{
-		VerifyPeerCertificate:  uConn.VerifyPeerCertificate,
-		ServerName:             config.ServerName,
-		InsecureSkipVerify:     true,
-		SessionTicketsDisabled: true,
-		KeyLogWriter:           KeyLogWriterFromConfig(config),
+		VerifyPeerCertificate:       uConn.VerifyPeerCertificate,
+		ServerName:                  config.ServerName,
+		InsecureSkipVerify:          true,
+		SessionTicketsDisabled:      true,
+		KeyLogWriter:                KeyLogWriterFromConfig(config),
+		DynamicRecordSizingDisabled: disableDynamicRecordSizing,
 	}
 	if utlsConfig.ServerName == "" {
 		utlsConfig.ServerName = dest.Address.String()
@@ -206,6 +221,7 @@ func UClient(c net.Conn, config *Config, ctx context.Context, dest net.Destinati
 	}
 	if !uConn.Verified {
 		errors.LogError(ctx, "REALITY: received real certificate (potential MITM or redirection)")
+		owned = false
 		go func() {
 			client := &http.Client{
 				Transport: &http2.Transport{
@@ -297,6 +313,7 @@ func UClient(c net.Conn, config *Config, ctx context.Context, dest net.Destinati
 		time.Sleep(time.Duration(crypto.RandBetween(config.SpiderY[8], config.SpiderY[9])) * time.Millisecond) // return
 		return nil, errors.New("REALITY: processed invalid connection")
 	}
+	owned = false
 	return uConn, nil
 }
 

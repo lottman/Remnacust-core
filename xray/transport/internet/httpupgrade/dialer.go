@@ -59,6 +59,12 @@ func dialhttpUpgrade(ctx context.Context, dest net.Destination, streamSettings *
 		errors.LogErrorInner(ctx, err, "failed to dial to ", dest)
 		return nil, err
 	}
+	transferred := false
+	defer func() {
+		if !transferred {
+			pconn.Close()
+		}
+	}()
 
 	var conn net.Conn
 	var requestURL url.URL
@@ -127,6 +133,7 @@ func dialhttpUpgrade(ctx context.Context, dest net.Destination, streamSettings *
 		}
 	}
 
+	transferred = true
 	return connRF, nil
 }
 

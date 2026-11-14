@@ -46,8 +46,9 @@ type walWriter struct {
 	storage Storage
 	prefix  string
 	params
-	sem chan struct{}
-	wg  sync.WaitGroup
+	sem  chan struct{}
+	wg   sync.WaitGroup
+	done chan struct{}
 
 	mu       sync.Mutex
 	buf      []byte
@@ -65,6 +66,7 @@ func newWALWriter(ctx context.Context, storage Storage, prefix string, p params)
 		prefix:  prefix,
 		params:  p,
 		sem:     make(chan struct{}, p.concurrency),
+		done:    make(chan struct{}),
 	}
 	go w.flushLoop()
 	return w
@@ -91,6 +93,7 @@ func (w *walWriter) Write(p []byte) (int, error) {
 }
 
 func (w *walWriter) flushLoop() {
+	defer close(w.done)
 	ticker := time.NewTicker(w.flushInterval)
 	defer ticker.Stop()
 
@@ -111,6 +114,8 @@ func (w *walWriter) flushLoop() {
 		}
 	}
 }
+
+func (w *walWriter) wait() { <-w.done }
 
 func (w *walWriter) readyToFlush() bool {
 	grew := len(w.buf) > w.lastSize
@@ -211,8 +216,9 @@ type walReader struct {
 	wake      chan struct{}
 	holeSince time.Time
 
-	errMu sync.Mutex
-	err   error
+	errMu   sync.Mutex
+	err     error
+	workers sync.WaitGroup
 }
 
 func newWALReader(ctx context.Context, storage Storage, prefix string, p params) *walReader {
@@ -225,10 +231,13 @@ func newWALReader(ctx context.Context, storage Storage, prefix string, p params)
 		discards: make(chan string, 4*p.concurrency),
 		wake:     make(chan struct{}, 1),
 	}
-	go r.run()
-	go r.discardLoop()
+	r.workers.Add(2)
+	go func() { defer r.workers.Done(); r.run() }()
+	go func() { defer r.workers.Done(); r.discardLoop() }()
 	return r
 }
+
+func (r *walReader) wait() { r.workers.Wait() }
 
 func (r *walReader) chunks() <-chan []byte {
 	return r.ch
@@ -420,7 +429,11 @@ func (r *walReader) discardLoop() {
 		case <-r.ctx.Done():
 			return
 		case name := <-r.discards:
-			sem <- struct{}{}
+			select {
+			case sem <- struct{}{}:
+			case <-r.ctx.Done():
+				return
+			}
 			wg.Add(1)
 			go func(name string) {
 				defer wg.Done()

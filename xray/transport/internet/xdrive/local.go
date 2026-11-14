@@ -38,6 +38,9 @@ func (s *localStorage) resolve(name string) (string, error) {
 }
 
 func (s *localStorage) Put(ctx context.Context, name string, data []byte) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	full, err := s.resolve(name)
 	if err != nil {
 		return err
@@ -68,6 +71,9 @@ func (s *localStorage) Put(ctx context.Context, name string, data []byte) error 
 }
 
 func (s *localStorage) Get(ctx context.Context, name string) ([]byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	full, err := s.resolve(name)
 	if err != nil {
 		return nil, err
@@ -83,6 +89,9 @@ func (s *localStorage) Get(ctx context.Context, name string) ([]byte, error) {
 }
 
 func (s *localStorage) Delete(ctx context.Context, name string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	full, err := s.resolve(name)
 	if err != nil {
 		return err
@@ -94,6 +103,9 @@ func (s *localStorage) Delete(ctx context.Context, name string) error {
 }
 
 func (s *localStorage) List(ctx context.Context, prefix string) ([]Entry, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	full, err := s.resolve(prefix)
 	if err != nil {
 		return nil, err

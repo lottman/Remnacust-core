@@ -29,6 +29,13 @@ func Dial(ctx context.Context, dest net.Destination, streamSettings *internet.Me
 	if err != nil {
 		return nil, errors.New("failed to dial to dest").Base(err)
 	}
+	raw := conn
+	transferred := false
+	defer func() {
+		if !transferred {
+			raw.Close()
+		}
+	}()
 
 	if config := tls.ConfigFromStreamSettings(streamSettings); config != nil {
 		mitmServerName := session.MitmServerNameFromContext(ctx)
@@ -89,13 +96,14 @@ func Dial(ctx context.Context, dest net.Destination, streamSettings *internet.Me
 		}
 		negotiatedProtocol := conn.(tls.Interface).NegotiatedProtocol()
 		if isFromMitmAlpn && !mitmAlpn11 && negotiatedProtocol != "h2" {
-			conn.Close()
 			return nil, errors.New("MITM freedom RAW TLS: unexpected Negotiated Protocol (" + negotiatedProtocol + ") with " + mitmServerName)
 		}
 	} else if config := reality.ConfigFromStreamSettings(streamSettings); config != nil {
+		transferred = true
 		if conn, err = reality.UClient(conn, config, ctx, dest); err != nil {
 			return nil, err
 		}
+		transferred = false
 	}
 
 	tcpSettings := streamSettings.ProtocolSettings.(*Config)
@@ -110,6 +118,7 @@ func Dial(ctx context.Context, dest net.Destination, streamSettings *internet.Me
 		}
 		conn = auth.Client(conn)
 	}
+	transferred = true
 	return stat.Connection(conn), nil
 }
 

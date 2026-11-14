@@ -222,6 +222,7 @@ type slotWriter struct {
 	// slots has a token for each segment on its way, at most one for each slot
 	slots chan struct{}
 	wg    sync.WaitGroup
+	done  chan struct{}
 
 	mu       sync.Mutex
 	buf      []byte
@@ -251,6 +252,7 @@ func newSlotWriter(ctx context.Context, store slotStore, table slotTable, p para
 		size:     min(slotInlineLimit, p.segmentBytes),
 		acked:    -1,
 		progress: time.Now(),
+		done:     make(chan struct{}),
 	}
 	go w.flushLoop()
 	return w
@@ -277,6 +279,7 @@ func (w *slotWriter) Write(p []byte) (int, error) {
 }
 
 func (w *slotWriter) flushLoop() {
+	defer close(w.done)
 	ticker := time.NewTicker(w.flushInterval)
 	defer ticker.Stop()
 
@@ -507,6 +510,8 @@ func (w *slotWriter) Close() error {
 	return w.write(seq, slotEnd, nil)
 }
 
+func (w *slotWriter) wait() { <-w.done; w.wg.Wait() }
+
 type slotReader struct {
 	ctx   context.Context
 	store slotStore
@@ -536,6 +541,7 @@ type slotReader struct {
 	tailMax      time.Duration
 	stallTimeout time.Duration
 	bodyRate     float64
+	workers      sync.WaitGroup
 }
 
 func newSlotReader(ctx context.Context, store slotStore, table slotTable, p params, first []byte) *slotReader {
@@ -570,10 +576,13 @@ func newSlotReader(ctx context.Context, store slotStore, table slotTable, p para
 		default:
 		}
 	}
-	go r.run()
-	go r.ackLoop()
+	r.workers.Add(2)
+	go func() { defer r.workers.Done(); r.run() }()
+	go func() { defer r.workers.Done(); r.ackLoop() }()
 	return r
 }
+
+func (r *slotReader) wait() { r.workers.Wait() }
 
 func (r *slotReader) chunks() <-chan []byte {
 	return r.ch
@@ -617,7 +626,8 @@ func (f *slotFetch) enter() {
 func (r *slotReader) run() {
 	defer close(r.ch)
 	ctx, cancel := context.WithCancel(r.ctx)
-	defer cancel()
+	var workers sync.WaitGroup
+	defer func() { cancel(); workers.Wait() }()
 
 	fetches := make(map[int64]*slotFetch)
 	for {
@@ -636,7 +646,8 @@ func (r *slotReader) run() {
 				if int64(i) <= slotReadAhead {
 					fetches[seq].enter()
 				}
-				go r.fetch(ctx, seq, i, fetches[seq])
+				workers.Add(1)
+				go func(seq int64, offset int, fetch *slotFetch) { defer workers.Done(); r.fetch(ctx, seq, offset, fetch) }(seq, i, fetches[seq])
 			}
 		}
 
@@ -845,7 +856,8 @@ func (r *slotReader) fetch(ctx context.Context, seq int64, offset int, f *slotFe
 
 func (r *slotReader) readHead(ctx context.Context, id string, seq int64) (string, error) {
 	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	var workers sync.WaitGroup
+	defer func() { cancel(); workers.Wait() }()
 	ctx = context.WithValue(ctx, laneKey{}, true)
 
 	type result struct {
@@ -856,7 +868,9 @@ func (r *slotReader) readHead(ctx context.Context, id string, seq int64) (string
 	outstanding := 0
 	launch := func() {
 		outstanding++
+		workers.Add(1)
 		go func() {
+			defer workers.Done()
 			r.reads.Add(1)
 			description, err := r.store.readDescription(ctx, id)
 			results <- result{description, err}
@@ -912,7 +926,8 @@ func (r *slotReader) readBodyHedged(ctx context.Context, id string, size int) ([
 		}
 	}
 	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	var workers sync.WaitGroup
+	defer func() { cancel(); workers.Wait() }()
 	start := time.Now()
 
 	type result struct {
@@ -921,7 +936,9 @@ func (r *slotReader) readBodyHedged(ctx context.Context, id string, size int) ([
 	}
 	results := make(chan result, 2)
 	launch := func() {
+		workers.Add(1)
 		go func() {
+			defer workers.Done()
 			body, err := r.store.readBody(ctx, id)
 			results <- result{body, err}
 		}()

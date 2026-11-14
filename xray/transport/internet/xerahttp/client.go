@@ -77,6 +77,7 @@ func (c *DefaultDialerClient) OpenStream(ctx context.Context, url string, sessio
 		return nil, nil, nil, err
 	}
 	c.transportConfig.FillStreamRequest(req, sessionId, "")
+	c.transportConfig.applyFetchOriginHeaders(req)
 	padding := c.transportConfig.CustomDownlinkPadding
 	if padding != nil {
 		req.Header.Set(padding.Header, padding.wireValue())
@@ -167,6 +168,7 @@ func (c *DefaultDialerClient) PostPacket(ctx context.Context, url string, sessio
 	if err := c.transportConfig.FillPacketRequest(req, sessionId, seqStr, payload); err != nil {
 		return err
 	}
+	c.transportConfig.applyFetchOriginHeaders(req)
 	if padding != nil {
 		req.Header.Set(padding.Header, padding.wireValue())
 	}

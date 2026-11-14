@@ -77,3 +77,33 @@ func alignHTTPVersion(headers http.Header, explicit map[string]string, profile, 
 		}
 	}
 }
+
+func (c *Config) applyFetchOriginHeaders(request *http.Request) {
+	if request.URL == nil || request.URL.Host == "" || (request.URL.Scheme != "http" && request.URL.Scheme != "https") || request.Header.Get("Sec-Fetch-Site") != "same-origin" || request.Header.Get("Sec-Fetch-Mode") != "cors" {
+		return
+	}
+	origin := *request.URL
+	origin.User = nil
+	origin.Path, origin.RawPath, origin.RawQuery, origin.Fragment, origin.RawFragment, origin.Opaque = "", "", "", "", "", ""
+	origin.ForceQuery = false
+	if (origin.Scheme == "https" && origin.Port() == "443") || (origin.Scheme == "http" && origin.Port() == "80") {
+		origin.Host = origin.Hostname()
+		if strings.Contains(origin.Host, ":") {
+			origin.Host = "[" + origin.Host + "]"
+		}
+	}
+	setDefault := func(name, value string) {
+		for key := range c.Headers {
+			if strings.EqualFold(key, name) {
+				return
+			}
+		}
+		if len(request.Header.Values(name)) == 0 {
+			request.Header.Set(name, value)
+		}
+	}
+	setDefault("Referer", origin.String()+"/")
+	if request.Method != http.MethodGet && request.Method != http.MethodHead {
+		setDefault("Origin", origin.String())
+	}
+}

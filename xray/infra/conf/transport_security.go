@@ -321,6 +321,16 @@ type TLSConfig struct {
 
 // Build implements Buildable.
 func (c *TLSConfig) Build() (proto.Message, error) {
+	for _, field := range []struct{ name, version string }{{"minVersion", c.MinVersion}, {"maxVersion", c.MaxVersion}} {
+		switch field.version {
+		case "", "1.0", "1.1", "1.2", "1.3":
+		default:
+			return nil, errors.New("unsupported TLS ", field.name)
+		}
+	}
+	if c.MinVersion != "" && c.MaxVersion != "" && c.MinVersion > c.MaxVersion {
+		return nil, errors.New("TLS minVersion must not exceed maxVersion")
+	}
 	config := new(tls.Config)
 	config.Certificate = make([]*tls.Certificate, len(c.Certs))
 	for idx, certConf := range c.Certs {
