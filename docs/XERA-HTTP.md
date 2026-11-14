@@ -40,6 +40,20 @@ uTLS согласует ClientHello, но не превращает весь к�
 
 У REALITY сохранён собственный fallback/spider: обычный доверенный сертификат вместо подтверждения REALITY может привести к HTTPS-запросам к настроенному серверу. Это не подтверждает доступ к VPN. Утверждение об отсутствии новых фоновых запросов относится к самому Xera.
 
+### Адаптивное управление HTTP-запросами
+
+В Core 1.1.22 доступны профили «Сбалансированный» (balanced), «Низкая задержка» (low-latency) и «Нестабильная сеть» (unstable-network). Они используют измеренные HTTP-ответы, ход передачи и ожидание запросов. Сбалансированный — исходный вариант для проверки; низкая задержка чувствительнее к росту задержек, нестабильная сеть осторожнее восстанавливает параллелизм после перегрузки.
+
+Необязательный блок `streamSettings.xeraHttpSettings.adaptive` требует явно указать все три поля: `mode`, `minStreams` и `maxStreams`. Режим принимает только три перечисленных значения. Границы — целые числа от 1 до 32, минимум не больше максимума. Форма панели предлагает 4/32; это не значения вместо пропущенных обязательных полей. Начальный предел 8 ограничивается выбранным диапазоном. Минимум не создаёт запросов при отсутствии трафика.
+
+Считаются одновременно активные HTTP-запросы отдельно для каждого направления, назначения и версии настроек транспорта. Это не число физических TCP-соединений, пользователей, всех сессий устройства или загрузка CPU. Подстройка меняет допуск новых запросов, не прерывая и не повторяя уже начатые.
+
+В панели выберите существующий транспорт, заполните профиль и границы и нажмите «Применить в JSON». Затем отдельно сохраните профиль и обновите подписку в приложении. Для inbound это клиентские параметры подписок связанных хостов; серверные лимиты настраиваются отдельно. Открытие формы не переписывает JSON. Если используется extra, форма сохраняет действующую структуру настроек.
+
+Без adaptive действует прежнее поведение. Ручные настройки JSON и extra, режимы передачи auto/stream-auto, ALPN, padding и квоты сохраняются. Для применения адаптации нужен Core 1.1.22 или новее в клиенте с поддержкой Xera HTTP; обновление панели или образа Node не обновляет ядро приложения. Существующий формат обмена Xera сохраняется.
+
+Это три политики измеренной обратной связи без обучения ИИ. Проверяйте отклик, передачу и устойчивость в своей сети. Они не гарантируют невидимость для DPI, доступность заблокированного адреса или преимущество в сетях России и Китая.
+
 ### Выбор режима и пределы обхода
 
 Состояние исследований проверялось на 14 ноября 2026 года. Работы по Китаю и РФ показывают разные механизмы: фильтрацию IP/SNI, анализ QUIC Initial, активные проверки и ограничение передачи после установления соединения. Дата публикации исследования не означает, что его метод продолжает действовать у каждого оператора. Отдельного подтверждённого описания упомянутого «ИИ-детектора» с набором данных и критериями обнаружения нет; Xera не имеет доказанной защиты от неизвестного классификатора.
@@ -86,6 +100,20 @@ Core 1.1.21 removes Go/uTLS's initial TLS record-size ramp for the verified Chro
 Explicit minVersion/maxVersion are validated and enforced with uTLS too. A fingerprint without a permitted version or an incompatible endpoint fails closed. Custom version bounds can change ClientHello. ECH and HTTP/3 require TLS 1.3.
 
 REALITY retains its existing fallback/spider: an ordinary trusted certificate instead of REALITY authentication can trigger HTTPS requests to the configured server. This does not grant VPN access. The statement about no added background requests concerns Xera itself.
+
+### Adaptive HTTP request control
+
+Core 1.1.22 offers Balanced (balanced), Low latency (low-latency) and Unstable network (unstable-network). They use measured HTTP responses, transfer progress and request waiting. Balanced is a starting point for testing; Low latency reacts more sensitively to rising delay, while Unstable network restores concurrency more cautiously after congestion.
+
+The optional `streamSettings.xeraHttpSettings.adaptive` object requires all three explicit fields: `mode`, `minStreams` and `maxStreams`. Mode accepts only the three listed values. Bounds must be integers from 1 to 32, with the minimum no greater than the maximum. The panel form offers 4/32; these do not replace missing required fields. The initial limit of 8 is clamped into the selected range. The minimum creates no requests while idle.
+
+Limits count simultaneously active HTTP requests separately for each direction, destination and generation of transport settings. They do not count physical TCP connections, users, all device sessions or CPU load. Adjustment changes admission of new requests without aborting or replaying existing ones.
+
+In the panel, select an existing transport, set the profile and bounds and choose Apply to JSON. Save the profile separately, then refresh the application subscription. For an inbound, these are client options in linked-host subscriptions; server limits are separate. Opening the form does not rewrite JSON. Where extra is used, the form preserves the effective settings structure.
+
+Without adaptive, previous behavior is preserved. Manual JSON and extra, auto/stream-auto transfer modes, ALPN, padding and quotas remain intact. Adaptation needs Core 1.1.22 or later in a client supporting Xera HTTP; updating Panel or the Node image does not update the application core. The existing Xera wire format is retained.
+
+These are three measured-feedback policies without AI training. Check responsiveness, transfer and stability on your network. They cannot guarantee DPI invisibility, reachability of a blocked address or an advantage on networks in Russia or China.
 
 ### Selecting a mode and understanding circumvention limits
 

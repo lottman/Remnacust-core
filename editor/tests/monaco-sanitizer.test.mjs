@@ -20,7 +20,7 @@ test('Monaco embedded sanitizer resolves to the patched runtime and rejects exec
         assert.equal(resolved?.id.replaceAll('\\', '/'), fileURLToPath(new URL('../src/shared/lib/monaco-dompurify.ts', import.meta.url)).replaceAll('\\', '/'))
         const module = await server.ssrLoadModule(resolved.id)
         const sanitizer = module.default(dom.window)
-        assert.equal(sanitizer.version, '3.4.17')
+        assert.equal(sanitizer.version, '3.4.18')
         const clean = sanitizer.sanitize('<img src="x" onerror="alert(1)"><svg onload="alert(2)"></svg><script>alert(3)</script><a href="javascript:alert(4)">safe</a>')
         const content = dom.window.document.createElement('div')
         content.innerHTML = clean

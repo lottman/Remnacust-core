@@ -16,13 +16,13 @@ bash <(curl -fsSL https://raw.githubusercontent.com/lottman/Remnacust-installer/
 
 | Component | Version |
 | --- | --- |
-| Core | [1.1.21](https://github.com/lottman/Remnacust-core/releases/tag/v1.1.21) |
+| Core | [1.1.22](https://github.com/lottman/Remnacust-core/releases/tag/v1.1.22) |
 | Xray base | [v26.11.9](https://github.com/XTLS/Xray-core/releases/tag/v26.11.9) |
-| Node | [1.1.36](https://github.com/lottman/Remnacust-node/releases/tag/v1.1.36) |
-| Panel and subscription page | [1.1.7.125](https://github.com/lottman/Remnacust-panel/releases/tag/v1.1.7.125) |
-| Installer | [1.2.173](https://github.com/lottman/Remnacust-installer/releases/tag/v1.2.173) |
+| Node | [1.1.37](https://github.com/lottman/Remnacust-node/releases/tag/v1.1.37) |
+| Panel and subscription page | [1.1.7.126](https://github.com/lottman/Remnacust-panel/releases/tag/v1.1.7.126) |
+| Installer | [1.2.174](https://github.com/lottman/Remnacust-installer/releases/tag/v1.2.174) |
 
-The base is published official Xray v26.11.9, commit `676eaf66f8f05d4d558ee7a74b4736623d3feeb9`. Provenance: [REMNACUST-UPSTREAM.json](xray/REMNACUST-UPSTREAM.json); see [Core 1.1.21 changes](docs/releases/1.1.21.md). New source in the branch does not mean the published binary has been updated.
+The base is published official Xray v26.11.9, commit `676eaf66f8f05d4d558ee7a74b4736623d3feeb9`. Provenance: [REMNACUST-UPSTREAM.json](xray/REMNACUST-UPSTREAM.json); see [Core 1.1.22 changes](docs/releases/1.1.22.md). New source in the branch does not mean the published binary has been updated.
 
 ## Installation and updates
 
@@ -34,12 +34,16 @@ Preserve `/opt/remnacust/node/.env`, `SECRET_KEY`, Compose and all private state
 
 ## Features and compatibility
 
-Node 1.1.35 contains two separate binaries: custom Core 1.1.21 and stock Xray v26.11.9. The panel's global mode defaults to custom. Default does not support Remnacust extensions; changing modes checks saved policies and quotas without deleting journals or silently removing limits. The editor uses separate custom and standard WASM/schema assets with pinned security dependency updates; browser validation does not prove a native connection works.
+Node 1.1.37 contains two separate binaries: custom Core 1.1.22 and stock Xray v26.11.9. The panel's global mode defaults to custom. Default does not support Remnacust extensions; changing modes checks saved policies and quotas without deleting journals or silently removing limits. The editor uses separate custom and standard WASM/schema assets with pinned security dependency updates; browser validation does not prove a native connection works.
 
 - Xera HTTP: `network: "xera-http"` and `xeraHttpSettings`; compatible client and server cores are required. Standard XHTTP is a separate transport. [Admission settings, resource limits and observable behavior](docs/XERA-HTTP.md).
 - Host/tag policies, quotas and user/device speed limits. Additional connections do not increase the allocated budget.
 - Access revocation using the authenticated key without disconnecting other devices behind the same NAT.
 - Compatible runtime updates can preserve connections. Changing a listener, port, transport or process requires planning for interruption.
+
+Adaptive Xera HTTP offers Balanced (balanced), Low latency (low-latency) and Unstable network (unstable-network). They adjust concurrency using measured HTTP responses, data transfer and request waiting. When adaptive is present, all three fields are required: mode, minStreams and maxStreams. Integer bounds range from 1 to 32, with the minimum no greater than the maximum; the panel form offers 4/32. Limits count simultaneously active HTTP requests separately for each direction, destination and generation of transport settings. They do not count TCP connections or users, or distribute CPU load.
+
+Without adaptive, previous behavior, manual JSON and extra remain available. Adjustment admits new requests without aborting or replaying existing ones; auto/stream-auto transfer modes, ALPN, padding and quotas are preserved. Adaptation requires Core 1.1.22 or later in a client supporting Xera HTTP. The existing Xera wire format is retained. Profiles use measured feedback without AI training and do not guarantee DPI invisibility or an advantage in any particular country.
 
 Standard configurations retain legacy compatibility within each client's/core's capabilities. Compatible XDNS, TUN, QUIC udpHop and outbound XDRIVE segment announcement variants are retained as listed in provenance. Ordinary upstream Xray does not automatically gain Remnacust extensions; do not bypass persisted policy checks to install an unsuitable core. Xray v26.11.9 disables MPTCP by default; updating Core does not replace Linux kernel updates.
 
@@ -50,6 +54,10 @@ Standard configurations retain legacy compatibility within each client's/core's 
 Existing connections and policies can operate without the panel while access rights and local grants remain valid. Access expiry, remaining applicable USER/HOST/TAG quotas and quota period deadlines continue to limit traffic. A new calendar period without the panel does not create fresh credit.
 
 A day of offline operation requires enough validity time and local credit for traffic and recovery. Restart requires compatible Node/Core versions and persisted configuration, credentials and journals. There is no 24-hour guarantee for every older core or after state loss. [Offline operation requirements](https://github.com/lottman/Remnacust-panel/blob/main/docs/NODE-AUTONOMY.md).
+
+## Core 1.1.22
+
+Adds three Xera HTTP adaptation profiles with explicit request bounds and preserved manual settings. XDRIVE bounds pending WAL segments, ends stalled transfers at the session TTL and cleans closed-session data with retries after storage errors. Legacy gRPC user and statistics operations honor cancellation after waiting; cancellation itself does not roll back changes already applied. The WAL and gRPC cancellation fixes retain existing wire and configuration formats. The official Xray v26.11.9 baseline is retained. [1.1.22 changes](docs/releases/1.1.22.md).
 
 ## Core 1.1.21
 
