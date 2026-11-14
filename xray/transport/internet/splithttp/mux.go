@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"math"
 	"math/big"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -18,27 +19,43 @@ type XmuxConn interface {
 }
 
 type XmuxClient struct {
-	XmuxConn     XmuxConn
-	Running      atomic.Int32
-	leftUsage    int32
-	LeftRequests atomic.Int32
-	UnreusableAt time.Time
-	NotUsed      atomic.Bool
+	XmuxConn      XmuxConn
+	Running       atomic.Int32
+	LifecycleRefs atomic.Int32
+	leftUsage     int32
+	LeftRequests  atomic.Int32
+	UnreusableAt  time.Time
+	NotUsed       atomic.Bool
+	closeOnce     sync.Once
 }
 
 func (c *XmuxClient) AddRunning() {
+	c.AddReference()
 	c.Running.Add(1)
 }
 
 func (c *XmuxClient) DoneRunning() {
 	c.Running.Add(-1)
+	c.DoneReference()
+}
+
+func (c *XmuxClient) AddReference() {
+	c.LifecycleRefs.Add(1)
+}
+
+func (c *XmuxClient) DoneReference() {
+	c.releaseReference()
 	c.maybeClose()
+}
+
+func (c *XmuxClient) releaseReference() {
+	c.LifecycleRefs.Add(-1)
 }
 
 // close the XmuxConn if it is not used and has no running requests
 func (c *XmuxClient) maybeClose() {
-	if c.NotUsed.Load() && c.Running.Load() <= 0 {
-		common.Close(c.XmuxConn)
+	if c.NotUsed.Load() && c.Running.Load() <= 0 && c.LifecycleRefs.Load() <= 0 {
+		c.closeOnce.Do(func() { common.Close(c.XmuxConn) })
 	}
 }
 

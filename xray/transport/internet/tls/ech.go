@@ -221,6 +221,7 @@ func dnsQuery(server string, domain string, sockopt *internet.SocketConfig) ([]b
 					if !h2c {
 						conn = utls.UClient(conn, &utls.Config{ServerName: host}, utls.HelloChrome_Auto)
 						if err := conn.(*utls.UConn).HandshakeContext(ctx); err != nil {
+							conn.Close()
 							return nil, err
 						}
 					}
@@ -250,12 +251,18 @@ func dnsQuery(server string, domain string, sockopt *internet.SocketConfig) ([]b
 			return nil, 0, err
 		}
 		defer resp.Body.Close()
-		respBody, err := io.ReadAll(resp.Body)
+		if resp.StatusCode != http.StatusOK {
+			return nil, 0, errors.New("query failed with response code:", resp.StatusCode)
+		}
+		if resp.ContentLength > dns.MaxMsgSize {
+			return nil, 0, errors.New("ECH DoH response exceeds maximum DNS message size")
+		}
+		respBody, err := io.ReadAll(io.LimitReader(resp.Body, dns.MaxMsgSize+1))
 		if err != nil {
 			return nil, 0, err
 		}
-		if resp.StatusCode != http.StatusOK {
-			return nil, 0, errors.New("query failed with response code:", resp.StatusCode)
+		if len(respBody) > dns.MaxMsgSize {
+			return nil, 0, errors.New("ECH DoH response exceeds maximum DNS message size")
 		}
 		dnsResolve = respBody
 	} else if strings.HasPrefix(server, "udp://") { // for classic udp dns server
@@ -265,7 +272,11 @@ func dnsQuery(server string, domain string, sockopt *internet.SocketConfig) ([]b
 		}
 		// default port 53 if not specified
 		if udpServerURL.Port() == "" {
-			udpServerURL.Host = udpServerURL.Host + ":53"
+			host := udpServerURL.Hostname()
+			if strings.Contains(host, ":") && !strings.HasPrefix(udpServerURL.Host, "[") {
+				return nil, 0, errors.New("invalid unbracketed IPv6 DNS server for ECH: ", udpServerURL.Host)
+			}
+			udpServerURL.Host = net.JoinHostPort(host, "53")
 		}
 		dest, err := net.ParseDestination("udp" + ":" + udpServerURL.Host)
 		if err != nil {
@@ -273,41 +284,40 @@ func dnsQuery(server string, domain string, sockopt *internet.SocketConfig) ([]b
 		}
 		dnsTimeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		// use xray's internet.DialSystem as mentioned above
-		conn, err := internet.DialSystem(dnsTimeoutCtx, dest, sockopt)
-		if err != nil {
-			return nil, 0, err
-		}
-		defer func() {
-			err := conn.Close()
-			if err != nil {
-				errors.LogDebug(context.Background(), "Failed to close connection: ", err)
-			}
-		}()
+		m.SetEdns0(1232, false)
 		msg, err := m.Pack()
 		if err != nil {
 			return nil, 0, err
 		}
-		conn.Write(msg)
-		udpResponse := make([]byte, 512)
-		conn.SetReadDeadline(time.Now().Add(5 * time.Second))
-		_, err = conn.Read(udpResponse)
+		dnsResolve, err = exchangeECHDNS(dnsTimeoutCtx, dest, msg, sockopt)
 		if err != nil {
 			return nil, 0, err
 		}
-		dnsResolve = udpResponse
+		response, err := unpackECHDNSResponse(dnsResolve, m)
+		if err != nil {
+			return nil, 0, err
+		}
+		if response.Truncated {
+			dest.Network = net.Network_TCP
+			dnsResolve, err = exchangeECHDNS(dnsTimeoutCtx, dest, msg, sockopt)
+			if err != nil {
+				return nil, 0, err
+			}
+		}
 	}
-	respMsg := new(dns.Msg)
-	err := respMsg.Unpack(dnsResolve)
+	respMsg, err := unpackECHDNSResponse(dnsResolve, m)
 	if err != nil {
-		return nil, 0, errors.New("failed to unpack dns response for ECH: ", err)
+		return nil, 0, err
+	}
+	if respMsg.Truncated {
+		return nil, 0, errors.New("truncated DNS response for ECH")
 	}
 	if len(respMsg.Answer) > 0 {
 		for _, answer := range respMsg.Answer {
-			if https, ok := answer.(*dns.HTTPS); ok && https.Hdr.Name == dns.Fqdn(domain) {
+			if https, ok := answer.(*dns.HTTPS); ok && https.Hdr.Class == dns.ClassINET && dns.CanonicalName(https.Hdr.Name) == dns.CanonicalName(m.Question[0].Name) {
 				for _, v := range https.Value {
-					if echConfig, ok := v.(*dns.SVCBECHConfig); ok {
-						errors.LogDebug(context.Background(), "Get ECH config:", echConfig.String(), " TTL:", respMsg.Answer[0].Header().Ttl)
+					if echConfig, ok := v.(*dns.SVCBECHConfig); ok && len(echConfig.ECH) > 0 {
+						errors.LogDebug(context.Background(), "Get ECH config:", echConfig.String(), " TTL:", answer.Header().Ttl)
 						return echConfig.ECH, answer.Header().Ttl, nil
 					}
 				}
@@ -315,6 +325,77 @@ func dnsQuery(server string, domain string, sockopt *internet.SocketConfig) ([]b
 		}
 	}
 	return nil, 0, errors.New("no valid ECH config found in DNS response")
+}
+
+func exchangeECHDNS(ctx context.Context, dest net.Destination, msg []byte, sockopt *internet.SocketConfig) ([]byte, error) {
+	// use xray's internet.DialSystem as mentioned above
+	conn, err := internet.DialSystem(ctx, dest, sockopt)
+	if err != nil {
+		return nil, err
+	}
+	closeConn := sync.OnceFunc(func() {
+		if err := conn.Close(); err != nil {
+			errors.LogDebug(ctx, "Failed to close connection: ", err)
+		}
+	})
+	stopClose := context.AfterFunc(ctx, closeConn)
+	defer func() {
+		stopClose()
+		closeConn()
+	}()
+	if deadline, ok := ctx.Deadline(); ok {
+		if err := conn.SetDeadline(deadline); err != nil {
+			return nil, err
+		}
+	}
+	if dest.Network == net.Network_TCP {
+		msg = append(binary.BigEndian.AppendUint16(nil, uint16(len(msg))), msg...)
+	}
+	n, err := conn.Write(msg)
+	if err != nil {
+		return nil, err
+	}
+	if n != len(msg) {
+		return nil, io.ErrShortWrite
+	}
+	if dest.Network == net.Network_TCP {
+		var length [2]byte
+		if _, err := io.ReadFull(conn, length[:]); err != nil {
+			return nil, err
+		}
+		response := make([]byte, int(binary.BigEndian.Uint16(length[:])))
+		if _, err := io.ReadFull(conn, response); err != nil {
+			return nil, err
+		}
+		return response, nil
+	}
+	response := make([]byte, dns.MaxMsgSize)
+	n, err = conn.Read(response)
+	if err != nil {
+		return nil, err
+	}
+	return response[:n], nil
+}
+
+func unpackECHDNSResponse(data []byte, query *dns.Msg) (*dns.Msg, error) {
+	response := new(dns.Msg)
+	if err := response.Unpack(data); err != nil && !response.Truncated {
+		return nil, errors.New("failed to unpack dns response for ECH: ", err)
+	}
+	if !response.Response || response.Id != query.Id || response.Opcode != query.Opcode {
+		return nil, errors.New("DNS response does not match ECH query")
+	}
+	if response.Rcode != dns.RcodeSuccess {
+		return nil, errors.New("ECH DNS query failed with response code: ", response.Rcode)
+	}
+	if len(response.Question) != 1 || len(data) < 6 || binary.BigEndian.Uint16(data[4:6]) != 1 {
+		return nil, errors.New("invalid ECH DNS response question count")
+	}
+	expected, actual := query.Question[0], response.Question[0]
+	if actual.Qtype != expected.Qtype || actual.Qclass != expected.Qclass || dns.CanonicalName(actual.Name) != dns.CanonicalName(expected.Name) {
+		return nil, errors.New("DNS response question does not match ECH query")
+	}
+	return response, nil
 }
 
 var ErrInvalidLen = errors.New("goech: invalid length")

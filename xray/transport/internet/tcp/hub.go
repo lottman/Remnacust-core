@@ -68,7 +68,6 @@ func ListenTCP(ctx context.Context, address net.Address, port net.Port, streamSe
 	}
 	if config := reality.ConfigFromStreamSettings(streamSettings); config != nil {
 		l.realityConfig = config.GetREALITYConfig()
-		go goreality.DetectPostHandshakeRecordsLens(l.realityConfig)
 	}
 
 	if tcpSettings.HeaderSettings != nil {
@@ -81,6 +80,10 @@ func ListenTCP(ctx context.Context, address net.Address, port net.Port, streamSe
 			return nil, errors.New("invalid header settings.").Base(err)
 		}
 		l.authConfig = auth
+	}
+
+	if l.realityConfig != nil {
+		l.listener = reality.NewListener(ctx, listener, l.realityConfig)
 	}
 
 	go l.keepAccepting()
@@ -106,10 +109,7 @@ func (v *Listener) keepAccepting() {
 			if v.tlsConfig != nil {
 				conn = tls.Server(conn, v.tlsConfig)
 			} else if v.realityConfig != nil {
-				if conn, err = reality.Server(conn, v.realityConfig); err != nil {
-					errors.LogInfo(context.Background(), err.Error())
-					return
-				}
+				conn = &reality.Conn{Conn: conn.(*goreality.Conn)}
 			}
 			if v.authConfig != nil {
 				conn = v.authConfig.Server(conn)

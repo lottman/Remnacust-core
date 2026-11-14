@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/xtls/xray-core/common/buf"
 	"github.com/xtls/xray-core/common/errors"
@@ -16,6 +17,30 @@ type BrowserDialerClient struct {
 	transportConfig *Config
 }
 
+func validateBrowserConfig(config *Config) error {
+	if config.CustomDownlinkPadding != nil {
+		return errors.New("custom downlink padding is not supported by Browser Dialer")
+	}
+	if config.GetNormalizedSessionPlacement() == PlacementCookie || config.GetNormalizedSeqPlacement() == PlacementCookie || config.GetNormalizedXPaddingPlacement() == PlacementCookie || config.GetNormalizedUplinkDataPlacement() == PlacementCookie {
+		return errors.New("Browser Dialer cannot set transport cookies on another origin; use path, query, headers, or body")
+	}
+	for name := range config.Headers {
+		if strings.EqualFold(name, "Cookie") {
+			return errors.New("Browser Dialer cannot set an explicit Cookie header")
+		}
+	}
+	switch strings.ToUpper(config.GetNormalizedUplinkHTTPMethod()) {
+	case "CONNECT", "TRACE", "TRACK":
+		return errors.New("uplink HTTP method is forbidden by browser Fetch")
+	case "GET", "HEAD":
+		placement := config.GetNormalizedUplinkDataPlacement()
+		if placement == PlacementBody || placement == PlacementAuto {
+			return errors.New("browser Fetch cannot send a body with GET or HEAD; use POST or header placement")
+		}
+	}
+	return nil
+}
+
 func (c *BrowserDialerClient) IsClosed() bool {
 	return false
 }
@@ -24,8 +49,8 @@ func (c *BrowserDialerClient) OpenStream(ctx context.Context, url string, sessio
 	if err := ctx.Err(); err != nil {
 		return nil, nil, nil, err
 	}
-	if c.transportConfig.CustomDownlinkPadding != nil {
-		return nil, nil, nil, errors.New("custom downlink padding is not supported by Browser Dialer")
+	if err := validateBrowserConfig(c.transportConfig); err != nil {
+		return nil, nil, nil, err
 	}
 	if body != nil {
 		return nil, nil, nil, errors.New("bidirectional streaming for browser dialer not implemented yet")
@@ -49,6 +74,10 @@ func (c *BrowserDialerClient) OpenStream(ctx context.Context, url string, sessio
 
 func (c *BrowserDialerClient) PostPacket(ctx context.Context, url string, sessionId string, seqStr string, payload buf.MultiBuffer) error {
 	if err := ctx.Err(); err != nil {
+		buf.ReleaseMulti(payload)
+		return err
+	}
+	if err := validateBrowserConfig(c.transportConfig); err != nil {
 		buf.ReleaseMulti(payload)
 		return err
 	}

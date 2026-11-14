@@ -7,12 +7,7 @@ import re
 import shutil
 import subprocess
 import tempfile
-import zipfile
-
-SOURCE_ARCHIVES = {
-    '676eaf66f8f05d4d558ee7a74b4736623d3feeb9': 'eab6fad20dfabc862c2537552e136e195de93d166c9a0bab72e408b4295eb7dc',
-    'a4a3dff5b20c2faae567b742c172c7b95e75c083': 'dcaec8dbf4520883c63544f48c972807cc2445f2a932b8fe63867361ef32084c',
-}
+from upstream_security import SECURITY, configuration_digest, prepare_source
 
 def digest(data):
     return hashlib.sha256(data).hexdigest()
@@ -56,7 +51,7 @@ def schema_for(source, definitions):
     if routing:
         root['allOf'] = [{'properties': {'routing': {'properties': {'rules': {'items': {'not': {'required': ['webhook']}}}}}}}]
     return {'$schema': 'http://json-schema.org/draft-07/schema#',
-            'title': 'Xray ' + metadata['upstreamVersion'] + ' (official upstream)',
+            'title': 'Xray ' + metadata['upstreamVersion'] + ' (official baseline with security dependency updates)',
             **ref('Config'), 'definitions': definitions}
 
 
@@ -69,30 +64,18 @@ editor = Path(__file__).resolve().parent
 metadata = json.loads((editor.parents[1] / 'xray/REMNACUST-UPSTREAM.json').read_text(encoding='utf-8'))
 if not args.output.is_dir():
     raise SystemExit('Output asset directory must already exist')
-if args.source_archive.stat().st_size > 64 * 1024 * 1024 or digest(args.source_archive.read_bytes()) != SOURCE_ARCHIVES.get(metadata['upstreamCommit']):
-    raise SystemExit('Source archive does not match the reviewed official upstream archive SHA256')
 go = str(Path(args.go).resolve()) if Path(args.go).is_file() else args.go
 with tempfile.TemporaryDirectory(prefix='remnacust-default-validator-') as temporary:
     workspace = Path(temporary)
-    with zipfile.ZipFile(args.source_archive) as archive:
-        if archive.comment.decode('ascii') != metadata['upstreamCommit']:
-            raise RuntimeError('Archive is not the pinned official upstream commit')
-        prefix = 'Xray-core-' + metadata['upstreamVersion'].removeprefix('v') + '/'
-        if sum(item.file_size for item in archive.infolist()) > 256 * 1024 * 1024:
-            raise RuntimeError('Upstream archive is too large')
-        for item in archive.infolist():
-            if not item.filename.startswith(prefix) or '..' in Path(item.filename).parts or '\\' in item.filename:
-                raise RuntimeError('Unsafe upstream archive path')
-        archive.extractall(workspace)
-    source = workspace / prefix.rstrip('/')
-    builder_hash = hashlib.sha256()
-    for filename in sorted((source / 'infra/conf').glob('*.go')):
-        if not filename.name.endswith('_test.go'):
-            builder_hash.update(filename.name.encode() + b'\0' + filename.read_bytes())
+    source, security = prepare_source(args.source_archive, workspace, metadata)
+    if digest(args.source_archive.read_bytes()) != security['tagSourceArchiveSha256']:
+        raise RuntimeError('Default WASM requires the reviewed official tag archive SHA256')
+    builder_hash = configuration_digest(source)
     host_env = os.environ.copy()
     for name in ['GOOS', 'GOARCH', 'GOFLAGS', 'GOWORK']:
         host_env.pop(name, None)
-    host_env['GOTOOLCHAIN'] = 'local'
+    host_env['GOTOOLCHAIN'] = security['goVersion']
+    host_env['GOWORK'] = 'off'
     definitions_path = workspace / 'types.json'
     subprocess.run([go, 'run', str(editor / 'tools/schema-types.go'), str(source / 'infra/conf'), str(definitions_path)],
                    cwd=source, env=host_env, check=True, timeout=120)
@@ -152,7 +135,7 @@ with tempfile.TemporaryDirectory(prefix='remnacust-default-validator-') as tempo
     shutil.copyfile(source / 'go.sum', wrapper / 'go.sum')
     wasm = workspace / 'default.wasm'
     env = dict(host_env, GOOS='js', GOARCH='wasm', CGO_ENABLED='0')
-    subprocess.run([go, 'build', '-mod=mod', '-trimpath', '-o', str(wasm), 'main.go'], cwd=wrapper, env=env, check=True, timeout=240)
+    subprocess.run([go, 'build', '-mod=readonly', '-trimpath', '-o', str(wasm), 'main.go'], cwd=wrapper, env=env, check=True, timeout=240)
     version = subprocess.check_output([go, 'version'], env=host_env, text=True).strip()
     generated = workspace / 'generated'
     generated.mkdir()
@@ -162,7 +145,8 @@ with tempfile.TemporaryDirectory(prefix='remnacust-default-validator-') as tempo
     provenance = {'flavor': 'default', 'upstreamVersion': metadata['upstreamVersion'],
                   'upstreamCommit': metadata['upstreamCommit'], 'goVersion': version,
                   'sourceArchiveSha256': digest(args.source_archive.read_bytes()),
-                  'configurationSourceSha256': builder_hash.hexdigest(),
+                  'configurationSourceSha256': builder_hash,
+                  'dependencySecurityUpdates': {'manifestSha256': digest((SECURITY / 'manifest.json').read_bytes()), **security},
                   'validatorWrapperSha256': digest((editor / 'main.go').read_bytes()),
                   'browserPlatformAdapters': sorted(adaptations),
                   'files': {name: digest((generated / name).read_bytes()) for name in ['default.wasm', 'xray.default.schema.json', 'xray.default.schema.cn.json']}}

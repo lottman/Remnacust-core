@@ -1,8 +1,10 @@
 package splithttp
 
 import (
+	"context"
 	"io"
 	"net"
+	"sync"
 	"time"
 )
 
@@ -12,6 +14,10 @@ type splitConn struct {
 	remoteAddr net.Addr
 	localAddr  net.Addr
 	onClose    func()
+	closeOnce  sync.Once
+	closeErr   error
+	cancel     context.CancelFunc
+	extra      io.Closer
 }
 
 func (c *splitConn) Write(b []byte) (int, error) {
@@ -23,21 +29,26 @@ func (c *splitConn) Read(b []byte) (int, error) {
 }
 
 func (c *splitConn) Close() error {
-	if c.onClose != nil {
-		c.onClose()
-	}
-
-	err := c.writer.Close()
-	err2 := c.reader.Close()
-	if err != nil {
-		return err
-	}
-
-	if err2 != nil {
-		return err
-	}
-
-	return nil
+	c.closeOnce.Do(func() {
+		if c.cancel != nil {
+			c.cancel()
+		}
+		if c.extra != nil {
+			c.extra.Close()
+		}
+		if c.writer != nil {
+			c.closeErr = c.writer.Close()
+		}
+		if c.reader != nil {
+			if err := c.reader.Close(); c.closeErr == nil {
+				c.closeErr = err
+			}
+		}
+		if c.onClose != nil {
+			c.onClose()
+		}
+	})
+	return c.closeErr
 }
 
 func (c *splitConn) LocalAddr() net.Addr {

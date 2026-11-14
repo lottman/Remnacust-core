@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/pion/transport/v4"
+	"github.com/pion/transport/v5"
 )
 
 func TestIsTunInterface(t *testing.T) {

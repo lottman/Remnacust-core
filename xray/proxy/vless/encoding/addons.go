@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 
+	"github.com/xtls/xray-core/common"
 	"github.com/xtls/xray-core/common/buf"
 	"github.com/xtls/xray-core/common/errors"
 	"github.com/xtls/xray-core/common/protocol"
@@ -166,6 +167,10 @@ func NewLengthPacketReader(reader io.Reader) *LengthPacketReader {
 type LengthPacketReader struct {
 	io.Reader
 	cache []byte
+}
+
+func (r *LengthPacketReader) Interrupt() {
+	common.Interrupt(r.Reader)
 }
 
 func (r *LengthPacketReader) ReadMultiBuffer() (buf.MultiBuffer, error) {

@@ -1,6 +1,29 @@
 package xerahttp
 
-import "sync/atomic"
+import (
+	"net/http"
+	"sync/atomic"
+)
+
+func packetBodyReservation(request *http.Request, placement string, maxPayload int64, customUplink bool) (int64, bool) {
+	if placement != PlacementBody && placement != PlacementAuto {
+		return 0, true
+	}
+	wireLimit := maxPayload
+	if customUplink {
+		wireLimit = maxPayload*4 + 65536
+	}
+	if request.ContentLength > wireLimit {
+		return 0, false
+	}
+	if request.ContentLength > 0 {
+		return min(request.ContentLength, maxPayload), true
+	}
+	if request.ContentLength == 0 && (request.Body == nil || request.Body == http.NoBody) {
+		return 0, true
+	}
+	return maxPayload, true
+}
 
 func acquireSlot(count *atomic.Int64, limit int64) bool {
 	for {

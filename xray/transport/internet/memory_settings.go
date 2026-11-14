@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	stdnet "net"
 	"reflect"
 	"sync"
 
@@ -52,6 +53,41 @@ func (s *MemoryStreamConfig) IsClosed() bool {
 	return s.closed
 }
 
+func (s *MemoryStreamConfig) GetDownloadSettings() (*MemoryStreamConfig, error) {
+	if s == nil {
+		return nil, stdnet.ErrClosed
+	}
+	s.closeAccess.Lock()
+	defer s.closeAccess.Unlock()
+	if s.closed {
+		return nil, stdnet.ErrClosed
+	}
+	return s.DownloadSettings, nil
+}
+
+func (s *MemoryStreamConfig) LoadOrStoreDownloadSettings(candidate *MemoryStreamConfig) (*MemoryStreamConfig, error) {
+	if s == nil {
+		_ = candidate.Close()
+		return nil, stdnet.ErrClosed
+	}
+	s.closeAccess.Lock()
+	if s.closed {
+		s.closeAccess.Unlock()
+		_ = candidate.Close()
+		return nil, stdnet.ErrClosed
+	}
+	current := s.DownloadSettings
+	if current == nil {
+		current = candidate
+		s.DownloadSettings = candidate
+	}
+	s.closeAccess.Unlock()
+	if candidate != current {
+		_ = candidate.Close()
+	}
+	return current, nil
+}
+
 func (s *MemoryStreamConfig) Close() error {
 	if s == nil {
 		return nil
@@ -64,12 +100,13 @@ func (s *MemoryStreamConfig) Close() error {
 	s.closed = true
 	hooks := s.closeHooks
 	s.closeHooks = nil
+	download := s.DownloadSettings
 	s.closeAccess.Unlock()
 	for _, hook := range hooks {
 		hook()
 	}
-	if s.DownloadSettings != nil {
-		_ = s.DownloadSettings.Close()
+	if download != nil {
+		_ = download.Close()
 	}
 	return nil
 }

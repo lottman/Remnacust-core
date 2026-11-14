@@ -329,7 +329,12 @@ func (h *requestHandler) ServeHTTP(writer http.ResponseWriter, request *http.Req
 			h.rejectRequest(writer, request)
 			return
 		}
-		reservation := int64(scMaxEachPostBytes)*4 + int64(h.config.GetNormalizedServerMaxHeaderBytes())*4 + 65536
+		bodyReservation, valid := packetBodyReservation(request, dataPlacement, int64(scMaxEachPostBytes), useCustomUplink)
+		if !valid {
+			writer.WriteHeader(http.StatusRequestEntityTooLarge)
+			return
+		}
+		reservation := bodyReservation*4 + int64(h.config.GetNormalizedServerMaxHeaderBytes())*4 + 65536
 		lease := h.budget.acquire(reservation)
 		if lease == nil {
 			writer.WriteHeader(http.StatusServiceUnavailable)
@@ -385,17 +390,11 @@ func (h *requestHandler) ServeHTTP(writer http.ResponseWriter, request *http.Req
 			rawBody := request.Body
 			if useCustomUplink {
 				wireLimit := int64(scMaxEachPostBytes)*4 + 65536
-				if request.ContentLength > wireLimit {
-					writer.WriteHeader(http.StatusRequestEntityTooLarge)
-					return
+				if request.ContentLength > 0 {
+					wireLimit = min(wireLimit, request.ContentLength)
 				}
 				request.Body = &paddedDownlinkReader{ReadCloser: &limitedUploadBody{Reader: io.LimitReader(request.Body, wireLimit), Closer: request.Body}}
 				request.ContentLength = -1
-			}
-			if request.ContentLength > int64(scMaxEachPostBytes) {
-				errors.LogInfo(context.Background(), "Too large upload. scMaxEachPostBytes is set to ", scMaxEachPostBytes, "but request size exceed it. Adjust scMaxEachPostBytes on the server to be at least as large as client.")
-				writer.WriteHeader(http.StatusRequestEntityTooLarge)
-				return
 			}
 			finishBody, readErr := guardPacketBody(writer, request, rawBody, currentSession, h.stopped.Wait())
 			if readErr != nil {
@@ -403,7 +402,9 @@ func (h *requestHandler) ServeHTTP(writer http.ResponseWriter, request *http.Req
 				return
 			}
 			defer finishBody(false)
-			if request.ContentLength > 0 {
+			if useCustomUplink {
+				bodyPayload, readErr = io.ReadAll(io.LimitReader(request.Body, int64(scMaxEachPostBytes)+1))
+			} else if request.ContentLength > 0 {
 				bodyPayload = make([]byte, request.ContentLength)
 				_, readErr = io.ReadFull(request.Body, bodyPayload)
 			} else {
@@ -658,6 +659,9 @@ func ListenXH(ctx context.Context, address net.Address, port net.Port, streamSet
 			MaxIncomingStreams:             quicParams.MaxIncomingStreams,
 			DisablePathMTUDiscovery:        quicParams.DisablePathMtuDiscovery || (runtime.GOOS != "linux" && runtime.GOOS != "windows" && runtime.GOOS != "darwin"),
 		}
+		if quicConfig.MaxIncomingStreams == 0 {
+			quicConfig.MaxIncomingStreams = 2*l.config.serverSessionLimit() + 256
+		}
 
 		var k *quic.StatelessResetKey
 		if !quicParams.DisableStatelessReset {
@@ -673,6 +677,8 @@ func ListenXH(ctx context.Context, address net.Address, port net.Port, streamSet
 
 		l.h3listener, err = tr.ListenEarly(tlsConfig, quicConfig)
 		if err != nil {
+			tr.Close()
+			Conn.Close()
 			return nil, errors.New("failed to listen QUIC for XERA-HTTP/3 on ", address, ":", port).Base(err)
 		}
 		l.h3listener = &QListener{
@@ -707,9 +713,7 @@ func ListenXH(ctx context.Context, address net.Address, port net.Port, streamSet
 
 	if l.listener != nil {
 		if config := tls.ConfigFromStreamSettings(streamSettings); config != nil {
-			if tlsConfig := config.GetTLSConfig(); tlsConfig != nil {
-				l.listener = gotls.NewListener(l.listener, tlsConfig)
-			}
+			l.listener = gotls.NewListener(l.listener, tlsConfig)
 		}
 		if config := reality.ConfigFromStreamSettings(streamSettings); config != nil {
 			l.listener = reality.NewListener(ctx, l.listener, config.GetREALITYConfig())

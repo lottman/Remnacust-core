@@ -2,7 +2,6 @@ package browser_dialer
 
 import (
 	"bytes"
-	"context"
 	_ "embed"
 	"encoding/base64"
 	"encoding/json"
@@ -33,15 +32,6 @@ var (
 	mu          sync.Mutex
 )
 
-var upgrader = &websocket.Upgrader{
-	ReadBufferSize:   0,
-	WriteBufferSize:  0,
-	HandshakeTimeout: time.Second * 4,
-	CheckOrigin: func(r *http.Request) bool {
-		return true
-	},
-}
-
 // Used by external projects when using xray as a go module
 func Reload() {
 	addr := platform.NewEnvFlag(platform.BrowserDialerAddress).GetValue(func() string { return "" })
@@ -56,7 +46,7 @@ func Reload() {
 		server.Close()
 		server = nil
 	}
-	if HasBrowserDialer() {
+	if conns != nil {
 		for len(conns) > 0 {
 			select {
 			case c := <-conns:
@@ -72,28 +62,15 @@ func Reload() {
 		csrfToken := token.String()
 		webpage := bytes.ReplaceAll(webpage, []byte("csrfToken"), []byte(csrfToken))
 		conns = make(chan *websocket.Conn, 256)
-		server = &http.Server{
-			Addr: addr,
-			Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if r.URL.Path == "/websocket" {
-					if r.URL.Query().Get("token") == csrfToken {
-						if conn, err := upgrader.Upgrade(w, r, nil); err == nil {
-							conns <- conn
-						} else {
-							errors.LogError(context.Background(), "Browser dialer http upgrade unexpected error")
-						}
-					}
-				} else {
-					w.Header().Set("Access-Control-Allow-Origin", "*")
-					w.Write(webpage)
-				}
-			}),
-		}
+		server = &http.Server{Addr: addr, Handler: newBrowserHandler(addr, csrfToken, webpage, conns),
+			ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 8192}
 		go server.ListenAndServe()
 	}
 }
 
 func HasBrowserDialer() bool {
+	mu.Lock()
+	defer mu.Unlock()
 	return conns != nil
 }
 
@@ -197,9 +174,12 @@ func dialTask(task task) (*websocket.Conn, error) {
 		return nil, err
 	}
 
+	mu.Lock()
+	available := conns
+	mu.Unlock()
 	var conn *websocket.Conn
 	for {
-		conn = <-conns
+		conn = <-available
 		if conn.WriteMessage(websocket.TextMessage, data) != nil {
 			conn.Close()
 		} else {

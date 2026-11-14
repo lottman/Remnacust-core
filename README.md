@@ -16,17 +16,17 @@ bash <(curl -fsSL https://raw.githubusercontent.com/lottman/Remnacust-installer/
 
 | Компонент | Версия |
 | --- | --- |
-| Core | [1.1.20](https://github.com/lottman/Remnacust-core/releases/tag/v1.1.20) |
+| Core | [1.1.21](https://github.com/lottman/Remnacust-core/releases/tag/v1.1.21) |
 | Основа Xray | [v26.11.9](https://github.com/XTLS/Xray-core/releases/tag/v26.11.9) |
-| Node | [1.1.34](https://github.com/lottman/Remnacust-node/releases/tag/v1.1.34) |
-| Панель и страница подписки | [1.1.7.123](https://github.com/lottman/Remnacust-panel/releases/tag/v1.1.7.123) |
-| Installer | [1.2.171](https://github.com/lottman/Remnacust-installer/releases/tag/v1.2.171) |
+| Node | [1.1.35](https://github.com/lottman/Remnacust-node/releases/tag/v1.1.35) |
+| Панель и страница подписки | [1.1.7.124](https://github.com/lottman/Remnacust-panel/releases/tag/v1.1.7.124) |
+| Installer | [1.2.172](https://github.com/lottman/Remnacust-installer/releases/tag/v1.2.172) |
 
-Основа — опубликованный официальный Xray v26.11.9, коммит `676eaf66f8f05d4d558ee7a74b4736623d3feeb9`. Происхождение: [REMNACUST-UPSTREAM.json](xray/REMNACUST-UPSTREAM.json); [изменения Core 1.1.20](docs/releases/1.1.20.md). Новые исходники в ветке не означают обновление опубликованного бинарника.
+Основа — опубликованный официальный Xray v26.11.9, коммит `676eaf66f8f05d4d558ee7a74b4736623d3feeb9`. Происхождение: [REMNACUST-UPSTREAM.json](xray/REMNACUST-UPSTREAM.json); [изменения Core 1.1.21](docs/releases/1.1.21.md). Новые исходники в ветке не означают обновление опубликованного бинарника.
 
 ## Установка и обновление
 
-Для VPS используйте готовый комплект из [инструкции Node](https://github.com/lottman/Remnacust-node). Installer 1.2.171 поддерживает Ubuntu 22.04/24.04/26.04 LTS и Debian 12/13, Linux amd64/arm64. Начальный ориентир ноды — 1 CPU и 1 GiB RAM без гарантии ёмкости; Node.js и Go на хосте не нужны.
+Для VPS используйте готовый комплект из [инструкции Node](https://github.com/lottman/Remnacust-node). Installer 1.2.172 поддерживает Ubuntu 22.04/24.04/26.04 LTS и Debian 12/13, Linux amd64/arm64. Начальный ориентир ноды — 1 CPU и 1 GiB RAM без гарантии ёмкости; Node.js и Go на хосте не нужны.
 
 Релизы Core содержат Linux-бинарники amd64/arm64 и `SHA256SUMS`. Для управляемой ноды выбирайте проверенное ядро через панель или `sudo remnacust manage-node`; не подменяйте работающий бинарник вручную. Обновление панели не обновляет удалённые ноды. `sudo remnacust upgrade-node` обновляет образ агента со встроенным Core, но отдельно выбранное managed-ядро может оставаться закреплённым. Проверяйте активные версию и режим.
 
@@ -34,7 +34,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/lottman/Remnacust-installer/
 
 ## Возможности и совместимость
 
-Node 1.1.34 включает два отдельных бинарника: custom Core 1.1.20 и штатный Xray v26.11.9. Глобальный режим панели по умолчанию — custom. Default не поддерживает расширения Remnacust; смена режима проходит проверки сохранённых политик и квот, без удаления журналов или автоматического снятия ограничений. Для редактора собираются отдельные custom и pristine upstream WASM/схемы; успешная browser-проверка не подтверждает работу native-соединения.
+Node 1.1.35 включает два отдельных бинарника: custom Core 1.1.21 и штатный Xray v26.11.9. Глобальный режим панели по умолчанию — custom. Default не поддерживает расширения Remnacust; смена режима проходит проверки сохранённых политик и квот, без удаления журналов или автоматического снятия ограничений. Для редактора собираются отдельные custom и стандартные WASM/схемы с закреплёнными обновлениями зависимостей безопасности; успешная browser-проверка не подтверждает работу native-соединения.
 
 - Xera HTTP: `network: "xera-http"` и `xeraHttpSettings`; нужны совместимые ядра клиента и сервера. Стандартный XHTTP — отдельный транспорт. [Настройка допуска, пределы ресурсов и наблюдаемые признаки](docs/XERA-HTTP.md).
 - Политики хостов/тегов, квоты и пределы скорости пользователя и устройства. Дополнительные соединения не увеличивают выделенный бюджет.
@@ -50,6 +50,10 @@ Node 1.1.34 включает два отдельных бинарника: custo
 Действующие соединения и политики могут работать без панели, пока действуют права и локальные гранты. Срок доступа, остаток применимых USER/HOST/TAG-квот и границы квотного периода продолжают ограничивать трафик. Новый календарный период без панели не создаёт новый кредит.
 
 Для суток автономности нужен запас срока и локального кредита на трафик и восстановление. Restart требует совместимых Node/Core, сохранённых конфигурации, credentials и журналов. Нельзя гарантировать 24 часа для любого прежнего ядра или после потери состояния. [Условия автономности](https://github.com/lottman/Remnacust-panel/blob/main/docs/NODE-AUTONOMY.md).
+
+## Core 1.1.21
+
+Исправлены учёт памяти и потоки Xera/XHTTP, Browser Dialer, получение ECH, ротация TLS-сертификатов и обработка больших буферов Vision. Обновлены совместимые зависимости; форматы транспортов сохранены. [1.1.21](docs/releases/1.1.21.md).
 
 ## Core 1.1.20
 

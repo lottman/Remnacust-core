@@ -20,7 +20,7 @@ import (
 var (
 	Version_x byte = 1
 	Version_y byte = 1
-	Version_z byte = 20
+	Version_z byte = 21
 )
 
 const (

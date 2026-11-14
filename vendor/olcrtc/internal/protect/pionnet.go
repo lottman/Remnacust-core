@@ -23,7 +23,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/pion/transport/v4"
+	"github.com/pion/transport/v5"
 )
 
 // ErrUnexpectedConnType is returned when a protected listen/dial yields an

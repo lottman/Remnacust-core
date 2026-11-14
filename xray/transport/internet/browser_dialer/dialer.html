@@ -15,19 +15,24 @@
 		let upstreamGetCount = 0;
 		let upstreamWsCount = 0;
 		let upstreamPostCount = 0;
+		const taskFailureCode = 4000;
+
+		function isTaskRecord(value) {
+			return value !== null && typeof value === "object" && !Array.isArray(value);
+		}
 
 		function prepareRequestInit(extra) {
-			const requestInit = {};
+			const requestInit = {redirect: "error", cache: "no-store"};
 			if (extra.referrer) {
 				// note: we have to strip the protocol and host part.
 				// Browsers disallow that, and will reset the value to current page if attempted.
-				const referrer = URL.parse(extra.referrer);
+				const referrer = new URL(extra.referrer);
 				requestInit.referrer = referrer.pathname + referrer.search + referrer.hash;
 				requestInit.referrerPolicy = "unsafe-url";
 			}
 
 			if (extra.headers) {
-				requestInit.headers = extra.headers;
+				requestInit.headers = new Headers(extra.headers);
 			}
 
 			if (extra.cookies) {
@@ -38,7 +43,7 @@
 		}
 
 		function setCookiesFromTask(task) {
-			if (!task.extra.cookies) {
+			if (!task.extra || !task.extra.cookies) {
 				return;
 			}
 
@@ -50,7 +55,7 @@
 		}
 
 		function clearCookiesFromTask(task) {
-			if (!task.extra.cookies) {
+			if (!task.extra || !task.extra.cookies) {
 				return;
 			}
 
@@ -66,7 +71,7 @@
 				return;
 			}
 			clientIdleCount += 1;
-			console.log("Prepare", url);
+			console.log("Prepare browser connection");
 			let ws = new WebSocket(url);
 			// arraybuffer is significantly faster in chrome than default
 			// blob, tested with chrome 123
@@ -76,11 +81,36 @@
 			// double-checking that this continues to work
 			ws.onmessage = function (event) {
 				clientIdleCount -= 1;
-				let task = JSON.parse(event.data);
+				let task, requestInit, wss;
+				try {
+					if (typeof event.data !== "string") throw new Error();
+					task = JSON.parse(event.data);
+					if (!isTaskRecord(task) || typeof task.method !== "string" || !task.method || typeof task.url !== "string" || typeof task.streamResponse !== "boolean") throw new Error();
+					task.extra ??= {};
+					if (!isTaskRecord(task.extra)) throw new Error();
+					for (const name of ["headers", "cookies"]) {
+						const value = task.extra[name];
+						if (value !== undefined && (!isTaskRecord(value) || !Object.values(value).every(item => typeof item === "string"))) throw new Error();
+					}
+					if (task.extra.referrer !== undefined && typeof task.extra.referrer !== "string" || task.extra.protocol !== undefined && typeof task.extra.protocol !== "string") throw new Error();
+					const target = new URL(task.url);
+					if (task.method === "WS") {
+						if (!task.streamResponse || !["ws:", "wss:"].includes(target.protocol)) throw new Error();
+						wss = new WebSocket(task.url, task.extra.protocol || []);
+					} else {
+						if (task.streamResponse && task.method !== "GET" || !["http:", "https:"].includes(target.protocol)) throw new Error();
+						requestInit = prepareRequestInit(task.extra);
+						requestInit.method = task.method;
+						new Request(task.url, requestInit);
+					}
+				} catch (error) {
+					ws.close(taskFailureCode, "Browser task failed");
+					check();
+					return;
+				}
 				if (task.method == "WS") {
 					upstreamWsCount += 1;
-					console.log("Dial WS", task.url, task.extra.protocol);
-					const wss = new WebSocket(task.url, task.extra.protocol);
+					console.log("Dial WS");
 					wss.binaryType = "arraybuffer";
 					let opened = false;
 					ws.onmessage = function (event) {
@@ -108,10 +138,7 @@
 				}
 				else if (task.method == "GET" && task.streamResponse) {
 					(async () => {
-						const requestInit = prepareRequestInit(task.extra);
-
-						console.log("Dial GET", task.url);
-						ws.send("ok");
+						console.log("Dial GET");
 						const controller = new AbortController();
 
 						/*
@@ -129,7 +156,7 @@
 						let reader = null;
 						ws.onclose = (event) => {
 							try {
-								reader && reader.cancel();
+								reader && reader.cancel().catch(() => {});
 							} catch(e) {}
 
 							try {
@@ -139,11 +166,16 @@
 
 						try {
 							upstreamGetCount += 1;
+							ws.send("ok");
 
 							requestInit.signal = controller.signal;
 							setCookiesFromTask(task);
 							const response = await fetch(task.url, requestInit);
 							clearCookiesFromTask(task);
+							if (response.status !== 200) {
+								ws.close(taskFailureCode, "Browser task failed");
+								return;
+							}
 
 							const body = await response.body;
 							reader = body.getReader();
@@ -153,20 +185,19 @@
 								if (value) ws.send(value);  // don't send back "undefined" string when received nothing
 								if (done) break;
 							}
+						} catch (error) {
+							ws.close(taskFailureCode, "Browser task failed");
 						} finally {
 							upstreamGetCount -= 1;
 							console.log("Dial GET DONE, remaining: ", upstreamGetCount);
-							ws.close();
+							if (ws.readyState === WebSocket.OPEN) ws.close();
 						}
 					})();
 				}
 				else if (!task.streamResponse) {
 					upstreamPostCount += 1;
 
-					const requestInit = prepareRequestInit(task.extra);
-					requestInit.method = task.method;
-
-					console.log("Dial", task.method, task.url);
+					console.log("Dial HTTP");
 					ws.send("ok");
 					ws.onmessage = async (event) => {
 						try {
@@ -176,22 +207,23 @@
 							setCookiesFromTask(task);
 							const response = await fetch(task.url, requestInit);
 							clearCookiesFromTask(task);
-							if (response.ok) {
+							if (response.status === 200) {
 								ws.send("ok");
 							} else {
 								console.error("bad status code");
 								ws.send("fail");
 							}
+						} catch (error) {
+							ws.send("fail");
 						} finally {
 							upstreamPostCount -= 1;
-							console.log("Dial", task.method, "packet DONE, remaining: ", upstreamPostCount);
+							console.log("Dial HTTP packet DONE, remaining: ", upstreamPostCount);
 							ws.close();
 						}
 					};
 				}
 				else {
-					console.error(`Incorrect task method=${task.method} streamResponse=${task.streamResponse}.`);
-					ws.close();
+					ws.close(taskFailureCode, "Browser task failed");
 				}
 
 				check();

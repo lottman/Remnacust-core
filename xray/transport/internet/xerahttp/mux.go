@@ -18,30 +18,45 @@ type XmuxConn interface {
 }
 
 type XmuxClient struct {
-	XmuxConn     XmuxConn
-	Running      atomic.Int32
-	leftUsage    int32
-	LeftRequests atomic.Int32
-	UnreusableAt time.Time
-	NotUsed      atomic.Bool
-	closeOnce    sync.Once
-	idleSince    atomic.Int64
+	XmuxConn      XmuxConn
+	Running       atomic.Int32
+	LifecycleRefs atomic.Int32
+	leftUsage     int32
+	LeftRequests  atomic.Int32
+	UnreusableAt  time.Time
+	NotUsed       atomic.Bool
+	closeOnce     sync.Once
+	idleSince     atomic.Int64
 }
 
 func (c *XmuxClient) AddRunning() {
+	c.AddReference()
 	c.Running.Add(1)
-	c.idleSince.Store(0)
 }
 
 func (c *XmuxClient) DoneRunning() {
-	if c.Running.Add(-1) == 0 {
-		c.idleSince.Store(time.Now().UnixNano())
-	}
+	c.Running.Add(-1)
+	c.DoneReference()
+}
+
+func (c *XmuxClient) AddReference() {
+	c.LifecycleRefs.Add(1)
+	c.idleSince.Store(0)
+}
+
+func (c *XmuxClient) DoneReference() {
+	c.releaseReference()
 	c.maybeClose()
 }
 
+func (c *XmuxClient) releaseReference() {
+	if c.LifecycleRefs.Add(-1) == 0 && c.Running.Load() == 0 {
+		c.idleSince.Store(time.Now().UnixNano())
+	}
+}
+
 func (c *XmuxClient) maybeClose() {
-	if c.NotUsed.Load() && c.Running.Load() <= 0 {
+	if c.NotUsed.Load() && c.Running.Load() <= 0 && c.LifecycleRefs.Load() <= 0 {
 		c.closeOnce.Do(func() { common.Close(c.XmuxConn) })
 	}
 }
@@ -93,7 +108,7 @@ func (m *XmuxManager) pruneIdle(now time.Time) {
 	for i := 0; i < len(m.xmuxClients) && len(m.xmuxClients) > minimum; {
 		client := m.xmuxClients[i]
 		idle := client.idleSince.Load()
-		if client.Running.Load() == 0 && idle != 0 && now.Sub(time.Unix(0, idle)) >= 30*time.Second {
+		if client.Running.Load() == 0 && client.LifecycleRefs.Load() == 0 && idle != 0 && now.Sub(time.Unix(0, idle)) >= 30*time.Second {
 			client.NotUsed.Store(true)
 			client.maybeClose()
 			copy(m.xmuxClients[i:], m.xmuxClients[i+1:])

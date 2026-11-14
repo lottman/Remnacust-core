@@ -14,15 +14,15 @@ import (
 // applyOutboundSocketOptions applies socket options for outbound connection.
 // note that unlike other part of Xray, this function needs network with speified network stack(tcp4/tcp6/udp4/udp6)
 func applyOutboundSocketOptions(network string, address string, fd uintptr, config *SocketConfig) error {
-	if config.Mark != 0 {
-		if err := syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_MARK, int(config.Mark)); err != nil {
-			return errors.New("failed to set SO_MARK").Base(err)
-		}
-	}
-
 	if config.Interface != "" {
 		if err := syscall.BindToDevice(int(fd), config.Interface); err != nil {
 			return NewBindError(errors.New("failed to set Interface").Base(err))
+		}
+	}
+
+	if config.Mark != 0 {
+		if err := syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_MARK, int(config.Mark)); err != nil {
+			return errors.New("failed to set SO_MARK").Base(err)
 		}
 	}
 

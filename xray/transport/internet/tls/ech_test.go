@@ -1,6 +1,7 @@
 package tls
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdh"
 	"crypto/rand"
@@ -47,7 +48,8 @@ func TestECHDial(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	echList := append(binary.BigEndian.AppendUint16(nil, uint16(len(echConfig))), echConfig...)
+	configs := bytes.Repeat(echConfig, 8)
+	echList := append(binary.BigEndian.AppendUint16(nil, uint16(len(configs))), configs...)
 	certificate, err := cert.Generate(nil, cert.Authority(true), cert.KeyUsage(x509.KeyUsageCertSign|x509.KeyUsageDigitalSignature), cert.DNSNames(secretName, publicName))
 	if err != nil {
 		t.Fatal(err)
@@ -188,9 +190,15 @@ func TestECHDial(t *testing.T) {
 }
 
 func TestECHDialFail(t *testing.T) {
+	server := echStartUDPDNS(t, "127.0.0.1:0", func(w dns.ResponseWriter, query *dns.Msg) {
+		if err := w.WriteMsg(new(dns.Msg).SetRcode(query, dns.RcodeNameError)); err != nil {
+			t.Error(err)
+		}
+	})
+	echClearDNSCache(t, server, "unavailable.example.test", nil)
 	config := &Config{
-		ServerName:    "cloudflare.com",
-		EchConfigList: "udp://0.0.0.0",
+		ServerName:    "unavailable.example.test",
+		EchConfigList: server,
 	}
 	tlsConfig := config.GetTLSConfig()
 	ApplyECH(config, tlsConfig)

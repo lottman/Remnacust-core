@@ -496,6 +496,9 @@ func ListenXH(ctx context.Context, address net.Address, port net.Port, streamSet
 			MaxIncomingStreams:             quicParams.MaxIncomingStreams,
 			DisablePathMTUDiscovery:        quicParams.DisablePathMtuDiscovery || (runtime.GOOS != "linux" && runtime.GOOS != "windows" && runtime.GOOS != "darwin"),
 		}
+		if quicConfig.MaxIncomingStreams == 0 {
+			quicConfig.MaxIncomingStreams = 1024
+		}
 
 		var k *quic.StatelessResetKey
 		if !quicParams.DisableStatelessReset {
@@ -507,6 +510,8 @@ func ListenXH(ctx context.Context, address net.Address, port net.Port, streamSet
 
 		l.h3listener, err = tr.ListenEarly(tlsConfig, quicConfig)
 		if err != nil {
+			tr.Close()
+			pktConn.Close()
 			return nil, errors.New("failed to listen QUIC for XHTTP/3 on ", address, ":", port).Base(err)
 		}
 		l.h3listener = &QListener{
@@ -548,9 +553,7 @@ func ListenXH(ctx context.Context, address net.Address, port net.Port, streamSet
 	// tcp/unix (h1/h2)
 	if l.listener != nil {
 		if config := tls.ConfigFromStreamSettings(streamSettings); config != nil {
-			if tlsConfig := config.GetTLSConfig(); tlsConfig != nil {
-				l.listener = gotls.NewListener(l.listener, tlsConfig)
-			}
+			l.listener = gotls.NewListener(l.listener, tlsConfig)
 		}
 		if config := reality.ConfigFromStreamSettings(streamSettings); config != nil {
 			l.listener = reality.NewListener(ctx, l.listener, config.GetREALITYConfig())
@@ -558,12 +561,15 @@ func ListenXH(ctx context.Context, address net.Address, port net.Port, streamSet
 
 		handler.localAddr = l.listener.Addr()
 
-		var http2Config *http.HTTP2Config
+		http2Config := new(http.HTTP2Config)
 		if len(l.config.H2Params) > 0 {
-			http2Config = new(http.HTTP2Config)
 			if err := json.Unmarshal(l.config.H2Params, http2Config); err != nil {
+				l.listener.Close()
 				return nil, errors.New("failed to parse HTTP2Config").Base(err)
 			}
+		}
+		if http2Config.MaxReadFrameSize == 0 {
+			http2Config.MaxReadFrameSize = 16384
 		}
 
 		// server can handle both plaintext HTTP/1.1 and h2c

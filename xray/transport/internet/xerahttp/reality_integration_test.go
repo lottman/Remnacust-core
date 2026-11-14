@@ -35,83 +35,88 @@ func TestRealityModesRoundTripAndClose(t *testing.T) {
 		t.Fatal(err)
 	}
 	shortID := []byte{1, 2, 3, 4, 5, 6, 7, 8}
-	for _, mode := range []string{ModeStreamAuto, ModeStreamOne, ModeStreamUp} {
-		t.Run(mode, func(t *testing.T) {
-			serverSettings := &internet.MemoryStreamConfig{
-				ProtocolName: protocolName, ProtocolSettings: &Config{Path: "/reality-check", Mode: mode},
-				SecurityType: "reality", SecuritySettings: &reality.Config{
-					Dest: decoy.Listener.Addr().String(), Type: "tcp", ServerNames: []string{"localhost"},
-					PrivateKey: key.Bytes(), ShortIds: [][]byte{shortID},
-				},
-			}
-			clientSettings := &internet.MemoryStreamConfig{
-				ProtocolName: protocolName, ProtocolSettings: &Config{Path: "/reality-check", Mode: mode},
-				SecurityType: "reality", SecuritySettings: &reality.Config{
-					ServerName: "localhost", Fingerprint: "chrome", PublicKey: key.PublicKey().Bytes(), ShortId: shortID,
-				},
-			}
-			port := tcp.PickPort()
-			const sessions = 24
-			closed := make(chan struct{}, sessions)
-			listener, err := ListenXH(context.Background(), net.LocalHostIP, port, serverSettings, func(c stat.Connection) {
-				go func() { io.Copy(c, c); c.Close(); closed <- struct{}{} }()
-			})
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer listener.Close()
-			dest := net.TCPDestination(net.LocalHostIP, port)
-			defer func() {
-				globalDialerAccess.Lock()
-				defer globalDialerAccess.Unlock()
-				key := dialerConf{dest, clientSettings}
-				if manager := globalDialerMap[key]; manager != nil {
-					for _, client := range manager.xmuxClients {
-						client.NotUsed.Store(true)
-						client.maybeClose()
-					}
-					delete(globalDialerMap, key)
+	for _, address := range []net.Address{net.LocalHostIP, net.LocalHostIPv6} {
+		for _, mode := range []string{ModeStreamAuto, ModeStreamOne, ModeStreamUp} {
+			t.Run(address.String()+"/"+mode, func(t *testing.T) {
+				if address.Family().IsIPv6() {
+					requireXeraIPv6Loopback(t)
 				}
-			}()
-			results := make(chan error, sessions)
-			for index := range sessions {
-				go func() {
-					ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-					defer cancel()
-					c, err := Dial(ctx, dest, clientSettings)
-					if err != nil {
-						results <- err
-						return
-					}
-					defer c.Close()
-					if err := c.SetDeadline(time.Now().Add(10 * time.Second)); err != nil {
-						results <- err
-						return
-					}
-					payload := bytes.Repeat([]byte{byte(index), 0x5a}, 65536)
-					if _, err = c.Write(payload); err == nil {
-						got := make([]byte, len(payload))
-						_, err = io.ReadFull(c, got)
-						if err == nil && !bytes.Equal(payload, got) {
-							err = fmt.Errorf("session %d payload differs", index)
+				serverSettings := &internet.MemoryStreamConfig{
+					ProtocolName: protocolName, ProtocolSettings: &Config{Path: "/reality-check", Mode: mode},
+					SecurityType: "reality", SecuritySettings: &reality.Config{
+						Dest: decoy.Listener.Addr().String(), Type: "tcp", ServerNames: []string{"localhost"},
+						PrivateKey: key.Bytes(), ShortIds: [][]byte{shortID},
+					},
+				}
+				clientSettings := &internet.MemoryStreamConfig{
+					ProtocolName: protocolName, ProtocolSettings: &Config{Path: "/reality-check", Mode: mode},
+					SecurityType: "reality", SecuritySettings: &reality.Config{
+						ServerName: "localhost", Fingerprint: "chrome", PublicKey: key.PublicKey().Bytes(), ShortId: shortID,
+					},
+				}
+				port := tcp.PickPort()
+				const sessions = 24
+				closed := make(chan struct{}, sessions)
+				listener, err := ListenXH(context.Background(), address, port, serverSettings, func(c stat.Connection) {
+					go func() { io.Copy(c, c); c.Close(); closed <- struct{}{} }()
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer listener.Close()
+				dest := net.TCPDestination(address, port)
+				defer func() {
+					globalDialerAccess.Lock()
+					defer globalDialerAccess.Unlock()
+					key := dialerConf{dest, clientSettings}
+					if manager := globalDialerMap[key]; manager != nil {
+						for _, client := range manager.xmuxClients {
+							client.NotUsed.Store(true)
+							client.maybeClose()
 						}
+						delete(globalDialerMap, key)
 					}
-					results <- err
 				}()
-			}
-			for range sessions {
-				if err := <-results; err != nil {
-					t.Error(err)
+				results := make(chan error, sessions)
+				for index := range sessions {
+					go func() {
+						ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+						defer cancel()
+						c, err := Dial(ctx, dest, clientSettings)
+						if err != nil {
+							results <- err
+							return
+						}
+						defer c.Close()
+						if err := c.SetDeadline(time.Now().Add(10 * time.Second)); err != nil {
+							results <- err
+							return
+						}
+						payload := bytes.Repeat([]byte{byte(index), 0x5a}, 65536)
+						if _, err = c.Write(payload); err == nil {
+							got := make([]byte, len(payload))
+							_, err = io.ReadFull(c, got)
+							if err == nil && !bytes.Equal(payload, got) {
+								err = fmt.Errorf("session %d payload differs", index)
+							}
+						}
+						results <- err
+					}()
 				}
-			}
-			deadline := time.After(10 * time.Second)
-			for range sessions {
-				select {
-				case <-closed:
-				case <-deadline:
-					t.Fatal("REALITY server streams survived client close")
+				for range sessions {
+					if err := <-results; err != nil {
+						t.Error(err)
+					}
 				}
-			}
-		})
+				deadline := time.After(10 * time.Second)
+				for range sessions {
+					select {
+					case <-closed:
+					case <-deadline:
+						t.Fatal("REALITY server streams survived client close")
+					}
+				}
+			})
+		}
 	}
 }

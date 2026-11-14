@@ -5,7 +5,7 @@
 package protect
 
 import (
-	"github.com/pion/transport/v4"
+	"github.com/pion/transport/v5"
 )
 
 // loadInterfaces falls back to netlink on android without cgo.

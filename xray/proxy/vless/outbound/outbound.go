@@ -152,6 +152,25 @@ func (h *Handler) Process(ctx context.Context, link *transport.Link, dialer inte
 	ob.Name = "vless"
 
 	rec := h.server
+	account := rec.User.Account.(*vless.MemoryAccount)
+	if ob.Target.Network == net.Network_UDP && ob.Target.Port == 443 && account.Flow == vless.XRV {
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		timer := signal.CancelAfterInactivity(ctx, cancel, h.policyManager.ForLevel(rec.User.Level).Timeouts.ConnectionIdle)
+		defer timer.SetTimeout(0)
+		interrupted := make(chan struct{})
+		stopInterrupt := context.AfterFunc(ctx, func() {
+			common.Interrupt(link.Reader)
+			close(interrupted)
+		})
+		defer func() {
+			if !stopInterrupt() {
+				<-interrupted
+			}
+		}()
+		buf.Copy(link.Reader, buf.Discard, buf.UpdateActivity(timer))
+		return errors.New("XTLS rejected UDP/443 traffic")
+	}
 	var conn stat.Connection
 
 	if h.testpre > 0 && h.reverse == nil {
@@ -235,27 +254,20 @@ func (h *Handler) Process(ctx context.Context, link *transport.Link, dialer inte
 		Port:    target.Port,
 	}
 
-	account := request.User.Account.(*vless.MemoryAccount)
-
 	requestAddons := &encoding.Addons{
 		Flow: account.Flow,
 	}
 
 	var input *bytes.Reader
 	var rawInput **bytes.Buffer
-	allowUDP443 := false
 	switch requestAddons.Flow {
 	case vless.XRV + "-udp443":
-		allowUDP443 = true
 		requestAddons.Flow = requestAddons.Flow[:16]
 		fallthrough
 	case vless.XRV:
 		ob.CanSpliceCopy = 2
 		switch request.Command {
 		case protocol.RequestCommandUDP:
-			if !allowUDP443 && request.Port == 443 {
-				return errors.New("XTLS rejected UDP/443 traffic")
-			}
 		case protocol.RequestCommandMux:
 			fallthrough // let server break Mux connections that contain TCP requests
 		case protocol.RequestCommandTCP, protocol.RequestCommandRvs:

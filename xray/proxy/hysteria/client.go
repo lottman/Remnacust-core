@@ -234,6 +234,10 @@ type UDPReader struct {
 	firstBuf *buf.Buffer
 }
 
+func (r *UDPReader) Interrupt() {
+	common.Interrupt(r.reader)
+}
+
 func (r *UDPReader) ReadFrom(p []byte) (n int, addr *net.Destination, err error) {
 	for {
 		var packet [1500]byte

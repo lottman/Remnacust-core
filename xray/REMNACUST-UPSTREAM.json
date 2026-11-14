@@ -20,7 +20,7 @@
     "legacy XDNS name/type/settings.addr",
     "legacy XDRIVE outbound segment announcements"
   ],
-  "version": "1.1.20",
+  "version": "1.1.21",
   "upstreamPatches": [],
   "checkedAt": "2026-11-14",
   "pendingRelease": false,
@@ -37,7 +37,9 @@
         "GO-2026-6612",
         "GO-2026-6611",
         "GO-2026-6610",
-        "GO-2026-6603"
+        "GO-2026-6603",
+        "GO-2026-6860",
+        "GO-2026-6866"
       ]
     },
     {
@@ -48,9 +50,69 @@
     },
     {
       "module": "golang.org/x/crypto/x509roots/fallback",
-      "version": "v0.0.0-20261020153306-9f2b28d4331a",
-      "source": "https://github.com/XTLS/Xray-core/releases/tag/v26.10.21",
-      "toolchain": "go1.27.3"
+      "previousVersion": "v0.0.0-20261020153306-9f2b28d4331a",
+      "version": "v0.0.0-20261113174652-9ccaac6145fb",
+      "source": "https://go.googlesource.com/crypto/+/9ccaac6145fb",
+      "toolchain": "go1.27.4"
+    },
+    {
+      "module": "github.com/apernet/quic-go",
+      "previousVersion": "v0.61.1-0.20260806010916-184d081eef3e",
+      "version": "v0.65.1-0.20261109005002-2895f039137a",
+      "source": "https://github.com/HyNetworks/quic-go/commit/2895f039137a405a34cffbcb27510ad31717d89a",
+      "upstreamBase": "v0.65.0",
+      "upstreamSource": "https://github.com/quic-go/quic-go/releases/tag/v0.65.0"
+    },
+    {
+      "module": "github.com/xtls/reality",
+      "previousVersion": "v0.0.0-20261108101329-4bb46b2afd8b",
+      "version": "v0.0.0-20261108102217-4a26e87788f5",
+      "source": "https://github.com/XTLS/REALITY/commit/4a26e87788f5"
+    },
+    {
+      "module": "golang.org/x/crypto",
+      "previousVersion": "v0.58.0",
+      "version": "v0.59.0",
+      "source": "https://go.googlesource.com/crypto/+/refs/tags/v0.59.0",
+      "reports": [
+        "GO-2026-5932"
+      ]
+    },
+    {
+      "module": "golang.org/x/exp",
+      "previousVersion": "v0.0.0-20260603202125-055de637280b",
+      "version": "v0.0.0-20261113113407-e3970619a1a4",
+      "source": "https://go.googlesource.com/exp/+/e3970619a1a4"
+    },
+    {
+      "module": "golang.org/x/sync",
+      "previousVersion": "v0.24.0",
+      "version": "v0.25.0",
+      "source": "https://go.googlesource.com/sync/+/refs/tags/v0.25.0"
+    },
+    {
+      "module": "golang.org/x/sys",
+      "previousVersion": "v0.49.0",
+      "version": "v0.50.0",
+      "source": "https://go.googlesource.com/sys/+/refs/tags/v0.50.0"
+    },
+    {
+      "module": "golang.org/x/time",
+      "previousVersion": "v0.15.0",
+      "version": "v0.16.0",
+      "source": "https://go.googlesource.com/time/+/refs/tags/v0.16.0"
+    },
+    {
+      "module": "go4.org/netipx",
+      "previousVersion": "v0.0.0-20231129151722-fdeea329fbba",
+      "version": "v0.0.0-20260823151212-3075585bcbeb",
+      "source": "https://github.com/go4org/netipx/commit/3075585bcbeb7a9f042662e543b03efe900018be"
+    },
+    {
+      "module": "golang.zx2c4.com/wireguard",
+      "previousVersion": "v0.0.0-20250521234502-f333402bd9cb",
+      "version": "v0.0.0-20261024220952-b3bc704ef0ee",
+      "source": "https://git.zx2c4.com/wireguard-go/commit/?id=b3bc704ef0ee21a36298601a9e1e5ff90377ac52"
     }
   ],
   "toolchainSecurityUpdate": {
@@ -61,5 +123,20 @@
       "GO-2026-6859"
     ]
   },
-  "upstreamSourceZipSha256": "05623c5394d82870edcfdd9355169b05453da133544355012b2cd1874e67f100"
+  "upstreamSourceZipSha256": "05623c5394d82870edcfdd9355169b05453da133544355012b2cd1874e67f100",
+  "dependencyCompatibilityPins": [
+    {
+      "module": "github.com/livekit/protocol",
+      "version": "v1.50.1",
+      "latestReviewed": "v1.54.0",
+      "consumer": "github.com/owenewans/owenlivekit/v2 v2.18.2",
+      "reason": "Protocol 1.51+ changes the TransferSIPParticipant response expected by the current SDK. The compatible version remains pinned; no reachable advisory was reported by the dependency checks."
+    },
+    {
+      "module": "gvisor.dev/gvisor",
+      "version": "v0.0.0-20260122175437-89a5d21be8f0",
+      "usage": "golang.zx2c4.com/wireguard/tun.test",
+      "reason": "Test-only dependency; a newer development HEAD is not treated as a stable runtime update."
+    }
+  ]
 }

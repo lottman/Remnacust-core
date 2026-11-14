@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/xtls/xray-core/common"
 	"github.com/xtls/xray-core/common/errors"
 	"github.com/xtls/xray-core/features/stats"
 	"github.com/xtls/xray-core/transport/internet/stat"
@@ -34,6 +35,10 @@ type TimeoutWrapperReader struct {
 	mb   MultiBuffer
 	err  error
 	done chan struct{}
+}
+
+func (r *TimeoutWrapperReader) Interrupt() {
+	common.Interrupt(r.Reader)
 }
 
 func (r *TimeoutWrapperReader) ReadMultiBuffer() (MultiBuffer, error) {

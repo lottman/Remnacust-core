@@ -6,3 +6,4 @@ Dockerfile text eol=lf
 *.ico binary
 *.wasm binary
 vendor/utls/** text eol=lf
+upstream-security/** text eol=lf

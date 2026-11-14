@@ -22,10 +22,18 @@ if (!isMainThread) {
     const runtime = process.env.REMNACUST_WASM_RUNTIME || path.join(assets, 'wasm_exec.js');
     const schema = JSON.parse(fs.readFileSync(path.join(assets, 'xray.default.schema.json'), 'utf8'));
     const root = schema.definitions.XrayDefaultConfig;
-    test('default assets are hash-bound to official upstream and expose stock configuration definitions', () => {
+    test('default assets retain official builders and reviewed security dependencies with stock configuration definitions', () => {
         const provenance = JSON.parse(fs.readFileSync(path.join(assets, 'xray.default.provenance.json'), 'utf8'));
         assert.equal(provenance.flavor, 'default');
-        assert.equal(provenance.upstreamCommit, 'a4a3dff5b20c2faae567b742c172c7b95e75c083');
+        assert.equal(provenance.upstreamCommit, '676eaf66f8f05d4d558ee7a74b4736623d3feeb9');
+        assert.equal(provenance.configurationSourceSha256, '01666deb53beae1df9df9fccbca8e807dc7405996cc8a368c1be6713c26e7cba');
+        const security = path.resolve(__dirname, '../upstream-security');
+        const manifest = fs.readFileSync(path.join(security, 'manifest.json'));
+        const { manifestSha256, ...recordedManifest } = provenance.dependencySecurityUpdates;
+        assert.equal(manifestSha256, createHash('sha256').update(manifest).digest('hex'));
+        assert.deepEqual(recordedManifest, JSON.parse(manifest));
+        for (const [name, field] of [['go.mod', 'goModSha256'], ['go.sum', 'goSumSha256']])
+            assert.equal(createHash('sha256').update(fs.readFileSync(path.join(security, name))).digest('hex'), recordedManifest[field]);
         for (const [filename, sha] of Object.entries(provenance.files))
             assert.equal(createHash('sha256').update(fs.readFileSync(path.join(assets, filename))).digest('hex'), sha, filename);
         for (const match of JSON.stringify(schema).matchAll(/"\$ref":"#\/definitions\/([^"]+)"/g))
@@ -50,7 +58,7 @@ if (!isMainThread) {
         t.after(() => worker.terminate());
         const result = await new Promise((resolve, reject) => { worker.once('message', resolve); worker.once('error', reject); worker.once('exit', code => { if (code) reject(Error('WASM worker exited ' + code)); }); });
         assert(!result.error, result.error);
-        assert.equal(result.version, '26.10.31');
+        assert.equal(result.version, '26.11.9');
         assert.deepEqual(result.results.slice(0, 3), [null, null, null]);
         for (const error of result.results.slice(3)) assert.equal(typeof error, 'string');
         assert.match(result.results[3], /transport|xera/i);

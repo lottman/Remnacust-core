@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/pion/transport/v4"
+	"github.com/pion/transport/v5"
 )
 
 // loadInterfacesNetlink enumerates interfaces through net.Interfaces(), which

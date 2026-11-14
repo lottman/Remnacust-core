@@ -31,10 +31,34 @@ type ownedListener struct {
 // owning pending handshakes and shutdown locally instead of closing a send queue.
 func NewListener(ctx context.Context, inner net.Listener, config *goreality.Config) net.Listener {
 	go goreality.DetectPostHandshakeRecordsLens(config)
-	return newOwnedListener(ctx, inner, func(ctx context.Context, raw net.Conn) (net.Conn, error) { return goreality.Server(ctx, raw, config) })
+	return newOwnedListener(ctx, inner, func(ctx context.Context, raw net.Conn) (net.Conn, error) {
+		config := config.Clone()
+		dial := config.DialContext
+		var stop func() bool
+		config.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
+			target, err := dial(ctx, network, address)
+			if err != nil {
+				if target != nil {
+					_ = target.Close()
+				}
+				return nil, err
+			}
+			stop = context.AfterFunc(ctx, func() { _ = target.Close() })
+			return target, nil
+		}
+		defer func() {
+			if stop != nil {
+				stop()
+			}
+		}()
+		return goreality.Server(ctx, raw, config)
+	})
 }
 
 func newOwnedListener(ctx context.Context, inner net.Listener, handshake func(context.Context, net.Conn) (net.Conn, error)) *ownedListener {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	ctx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	l := &ownedListener{Listener: inner, ctx: ctx, cancel: cancel, pending: make(map[net.Conn]struct{}), done: make(chan struct{}), ready: make(chan listenerResult, 16), slots: make(chan struct{}, 256), handshake: handshake}
 	go l.serve()

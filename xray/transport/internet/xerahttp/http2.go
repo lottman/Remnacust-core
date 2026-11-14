@@ -11,7 +11,7 @@ import (
 
 func (c *Config) http2Config() (*http.HTTP2Config, error) {
 	if len(c.H2Params) == 0 {
-		return nil, nil
+		return &http.HTTP2Config{MaxReadFrameSize: 16384}, nil
 	}
 	if len(c.H2Params) > 4096 || bytes.Equal(bytes.TrimSpace(c.H2Params), []byte("null")) {
 		return nil, fmt.Errorf("h2Params must be a JSON object of at most 4096 bytes")
@@ -46,6 +46,9 @@ func (c *Config) http2Config() (*http.HTTP2Config, error) {
 		if timeout < 0 || timeout > 24*time.Hour {
 			return nil, fmt.Errorf("h2Params timeouts must be within 0..24 hours in nanoseconds")
 		}
+	}
+	if config.MaxReadFrameSize == 0 {
+		config.MaxReadFrameSize = 16384
 	}
 	return config, nil
 }

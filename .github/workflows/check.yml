@@ -3,26 +3,52 @@ on: [push, pull_request]
 permissions:
   contents: read
 jobs:
+  standalone-editor:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: editor
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 26.13.1
+          package-manager-cache: false
+      - name: Use npm 12.2.2
+        run: npm install --global --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org npm@12.2.2 && test "$(npm --version)" = "12.2.2"
+      - run: npm ci
+      - run: npm audit --package-lock-only --audit-level=low
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
   core:
     runs-on: ubuntu-latest
+    env:
+      REMNACUST_REQUIRE_IPV6_TESTS: '1'
     defaults:
       run:
         working-directory: xray
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
           go-version: '1.27.4'
           cache-dependency-path: xray/go.sum
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 26.13.1
+          package-manager-cache: false
       - name: Require a published official upstream tag
         run: python3 ../tests/upstream-release-policy.test.py --verify-remote
       - name: Verify pinned uTLS certificate decompression and stream boundaries
         run: python3 ../tests/utls-certificate-compression.test.py --race --verify-upstream
-      - run: go test -race ./infra/conf ./core ./app/dispatcher ./app/stats ./app/stats/command ./main/commands/all/api ./app/proxyman/inbound ./app/proxyman/outbound ./app/proxyman/command ./app/router/command ./common/mux ./proxy/freedom ./transport/internet ./transport/internet/grpc ./transport/internet/splithttp ./transport/internet/xerahttp ./transport/internet/hysteria ./transport/internet/tls ./transport/internet/reality
+      - run: go test -race ./infra/conf ./core ./app/dispatcher ./app/stats ./app/stats/command ./main/commands/all/api ./app/proxyman/inbound ./app/proxyman/outbound ./app/proxyman/command ./app/router/command ./common/mux ./proxy/freedom ./transport/internet ./transport/internet/grpc ./transport/internet/splithttp ./transport/internet/xerahttp ./transport/internet/browser_dialer ./transport/internet/hysteria ./transport/internet/tls ./transport/internet/reality
       - name: Preserve existing explicit inbound management semantics
         run: go test ./testing/scenarios -run TestCommander -count=1
       - name: Verify shared TLS policy consumers
         run: go test -race ./transport/internet/tcp ./transport/internet/websocket ./transport/internet/httpupgrade ./transport/internet/xdrive ./transport/internet/masque ./transport/internet/finalmask/xdns
+      - name: Verify Vision buffers and transport cancellation
+        run: go test -race ./common/buf ./proxy ./proxy/vless/encoding ./proxy/vless/outbound ./proxy/hysteria ./transport/internet/masque/connectip
       - name: Verify published WireGuard, MASQUE and XDNS compatibility
         run: go test -race ./proxy/masque ./proxy/wireguard ./proxy/tun ./transport/internet/masque ./transport/internet/finalmask/xdns
       - name: Compile browser configuration validator against current core
@@ -37,7 +63,7 @@ jobs:
             -v "${{ github.workspace }}:/workspace:ro" \
             -v "$(go env GOMODCACHE):/go/pkg/mod" \
             -v "$(go env GOCACHE):/root/.cache/go-build" \
-            -w /workspace/xray golang:1.27 \
+            -w /workspace/xray golang:1.27.4@sha256:5e8afd493a7124a8586e134d9b532731161d4b9becf9dee5a5956b107426f93d \
             go test -race -count=1 -run TestRuntimeOfflineQuotaIsolated -v ./app/proxyman/command
       - name: Verify CLI imports cannot replace a running node policy acknowledgement
         run: |
@@ -46,7 +72,7 @@ jobs:
             -v "${{ github.workspace }}:/workspace:ro" \
             -v "$(go env GOMODCACHE):/go/pkg/mod" \
             -v "$(go env GOCACHE):/root/.cache/go-build" \
-            -w /workspace/xray golang:1.27 \
+            -w /workspace/xray golang:1.27.4@sha256:5e8afd493a7124a8586e134d9b532731161d4b9becf9dee5a5956b107426f93d \
             go test -race -count=1 -run TestHostPolicyImportsDoNotTouchNodeState -v ./app/dispatcher
       - name: Verify mandatory user quotas preserve live VLESS sessions and dynamic credentials
         run: |
@@ -55,7 +81,7 @@ jobs:
             -v "${{ github.workspace }}:/workspace:ro" \
             -v "$(go env GOMODCACHE):/go/pkg/mod" \
             -v "$(go env GOCACHE):/root/.cache/go-build" \
-            -w /workspace/xray golang:1.27 \
+            -w /workspace/xray golang:1.27.4@sha256:5e8afd493a7124a8586e134d9b532731161d4b9becf9dee5a5956b107426f93d \
             go test -race -count=1 -timeout=90s -run '^TestRuntimeUserQuota' -v ./app/proxyman/command
       - name: Verify registered grants cannot spend staged credit or erase used credit
         run: |
@@ -64,24 +90,121 @@ jobs:
             -v "${{ github.workspace }}:/workspace:ro" \
             -v "$(go env GOMODCACHE):/go/pkg/mod" \
             -v "$(go env GOCACHE):/root/.cache/go-build" \
-            -w /workspace/xray golang:1.27 \
+            -w /workspace/xray golang:1.27.4@sha256:5e8afd493a7124a8586e134d9b532731161d4b9becf9dee5a5956b107426f93d \
             go test -race -count=1 -timeout=90s -run '^TestRuntimeRegisteredQuotaIsolated$' -v ./app/proxyman/command
       - run: CGO_ENABLED=0 go build -trimpath -o /tmp/remnacust-xray ./main
       - run: python3 ../tests/version.test.py /tmp/remnacust-xray
+      - name: Verify native Xera interoperability with the previous published core
+        run: |
+          set -euo pipefail
+          previous="$RUNNER_TEMP/remnacust-core-1.1.20-linux-amd64"
+          curl --fail --location --proto '=https' --proto-redir '=https' --max-time 180 --max-filesize 201326592 \
+            https://github.com/lottman/Remnacust-core/releases/download/v1.1.20/remnacust-core-1.1.20-linux-amd64 --output "$previous"
+          printf '%s  %s\n' 974e2e5a75341b5dd42ed69c643e02176b31d2171ef75c4139ab31b3ddb1acbd "$previous" | sha256sum --check --strict
+          chmod 755 "$previous"
+          python3 ../tests/xera-wire-compat.integration.py --current /tmp/remnacust-xray --previous "$previous" \
+            --previous-sha256 974e2e5a75341b5dd42ed69c643e02176b31d2171ef75c4139ab31b3ddb1acbd
       - run: python3 ../tests/geoip-routing.integration.py /tmp/remnacust-xray
       - run: python3 ../tests/device-revoke.integration.py /tmp/remnacust-xray
-      - run: go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
+      - run: go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
       - run: govulncheck ./...
+      - name: Verify standard core security dependency overlay
+        working-directory: .
+        run: |
+          set -euo pipefail
+          security_root=$(mktemp -d "$RUNNER_TEMP/remnacust-upstream-security.XXXXXXXX")
+          export SECURITY_ROOT="$security_root"
+          python3 - <<'PY'
+          import hashlib,json,os,urllib.request
+          from pathlib import Path
+          manifest=json.loads(Path('upstream-security/manifest.json').read_text())
+          archive=Path(os.environ['SECURITY_ROOT'])/'upstream.zip'
+          with urllib.request.urlopen(manifest['sourceArchiveUrl'],timeout=60) as response:
+              data=response.read(64*1024*1024+1)
+          if len(data)>64*1024*1024 or hashlib.sha256(data).hexdigest()!=manifest['sourceArchiveSha256']:
+              raise SystemExit('Official security baseline archive integrity mismatch')
+          archive.write_bytes(data)
+          PY
+          python3 tests/upstream-security.test.py --source-archive "$security_root/upstream.zip"
+          python3 editor/go/upstream_security.py --source-archive "$security_root/upstream.zip" \
+            --output "$security_root/source" --govulncheck "$(go env GOPATH)/bin/govulncheck"
+          python3 - <<'PY'
+          import hashlib,json,os,urllib.request
+          from pathlib import Path
+          manifest=json.loads(Path('upstream-security/manifest.json').read_text())
+          with urllib.request.urlopen(manifest['tagSourceArchiveUrl'],timeout=60) as response:
+              data=response.read(64*1024*1024+1)
+          if len(data)>64*1024*1024 or hashlib.sha256(data).hexdigest()!=manifest['tagSourceArchiveSha256']:
+              raise SystemExit('Official default validator archive integrity mismatch')
+          (Path(os.environ['SECURITY_ROOT'])/'tag.zip').write_bytes(data)
+          PY
+          mkdir "$security_root/assets"
+          python3 editor/go/build-default.py --source-archive "$security_root/tag.zip" --output "$security_root/assets"
+          cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" "$security_root/assets/wasm_exec.js"
+          REMNACUST_DEFAULT_ASSETS="$security_root/assets" node --test tests/default-validator.test.cjs
+  browser-compatibility:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    env:
+      REMNACUST_REQUIRE_BROWSER_TESTS: '1'
+      REMNACUST_REQUIRE_IPV6_TESTS: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version: '1.27.4'
+          cache-dependency-path: xray/go.sum
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 26.13.1
+          package-manager-cache: false
+      - name: Use npm 12.2.2
+        run: npm install --global --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org npm@12.2.2 && test "$(npm --version)" = "12.2.2"
+      - name: Install pinned browser dependencies in a temporary directory
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+        run: |
+          set -euo pipefail
+          browser_root=$(mktemp -d "$RUNNER_TEMP/xera-browser.XXXXXXXX")
+          npm install --prefix "$browser_root/playwright" --no-package-lock --no-save --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org playwright@1.62.0
+          node "$browser_root/playwright/node_modules/playwright/cli.js" install-deps chromium
+          archive="$browser_root/chrome-headless-shell-linux64.zip"
+          curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
+            --connect-timeout 15 --max-time 180 --retry 2 --retry-max-time 240 --max-filesize 268435456 \
+            https://storage.googleapis.com/chrome-for-testing-public/155.0.8059.84/linux64/chrome-headless-shell-linux64.zip \
+            --output "$archive"
+          printf '%s  %s\n' a5d71b91aa996fef00517cd212b2dfb816b43055edefbe727e6fd562d4ae1f9c "$archive" | sha256sum --check --strict
+          python3 -m zipfile -e "$archive" "$browser_root"
+          chrome="$browser_root/chrome-headless-shell-linux64/chrome-headless-shell"
+          chmod 755 "$chrome"
+          printf 'XRAY_BROWSER_NODE=%s\nXRAY_BROWSER_CHROME=%s\nXRAY_BROWSER_PLAYWRIGHT_PATH=%s\n' \
+            "$(command -v node)" "$chrome" "$browser_root/playwright/node_modules/playwright" >> "$GITHUB_ENV"
+      - name: Require real Chrome and IPv6 browser integration under the race detector
+        working-directory: xray
+        run: |
+          set -euo pipefail
+          go test -race -count=1 -timeout=180s -json -run '^TestBrowserCompatibility' ./transport/internet/browser_dialer | python3 -c '
+          import json, sys
+          passed = False
+          skipped = False
+          for line in sys.stdin:
+              event = json.loads(line)
+              print(event.get("Output", ""), end="", flush=True)
+              passed |= event.get("Action") == "pass" and event.get("Test") == "TestBrowserCompatibilityChrome"
+              skipped |= event.get("Action") == "skip"
+          if not passed or skipped:
+              sys.exit("Required Chrome integration did not pass without skips")
+          '
   windows-transport-cleanup:
     runs-on: windows-latest
     defaults:
       run:
         working-directory: xray
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
           go-version: '1.27.4'
           cache-dependency-path: xray/go.sum
-      - run: go test -count=1 ./transport/internet/tls ./transport/internet/tcp ./transport/internet/websocket ./transport/internet/httpupgrade
+      - run: go test -count=1 ./transport/internet/tls ./transport/internet/tcp ./transport/internet/websocket ./transport/internet/httpupgrade ./transport/internet/browser_dialer
       - run: go test -count=3 ./transport/internet/xdrive

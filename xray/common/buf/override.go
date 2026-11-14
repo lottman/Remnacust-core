@@ -1,6 +1,7 @@
 package buf
 
 import (
+	"github.com/xtls/xray-core/common"
 	"github.com/xtls/xray-core/common/net"
 )
 
@@ -8,6 +9,10 @@ type EndpointOverrideReader struct {
 	Reader
 	Dest         net.Address
 	OriginalDest net.Address
+}
+
+func (r *EndpointOverrideReader) Interrupt() {
+	common.Interrupt(r.Reader)
 }
 
 func (r *EndpointOverrideReader) ReadMultiBuffer() (MultiBuffer, error) {

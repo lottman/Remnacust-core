@@ -16,17 +16,17 @@ bash <(curl -fsSL https://raw.githubusercontent.com/lottman/Remnacust-installer/
 
 | Component | Version |
 | --- | --- |
-| Core | [1.1.20](https://github.com/lottman/Remnacust-core/releases/tag/v1.1.20) |
+| Core | [1.1.21](https://github.com/lottman/Remnacust-core/releases/tag/v1.1.21) |
 | Xray base | [v26.11.9](https://github.com/XTLS/Xray-core/releases/tag/v26.11.9) |
-| Node | [1.1.34](https://github.com/lottman/Remnacust-node/releases/tag/v1.1.34) |
-| Panel and subscription page | [1.1.7.123](https://github.com/lottman/Remnacust-panel/releases/tag/v1.1.7.123) |
-| Installer | [1.2.171](https://github.com/lottman/Remnacust-installer/releases/tag/v1.2.171) |
+| Node | [1.1.35](https://github.com/lottman/Remnacust-node/releases/tag/v1.1.35) |
+| Panel and subscription page | [1.1.7.124](https://github.com/lottman/Remnacust-panel/releases/tag/v1.1.7.124) |
+| Installer | [1.2.172](https://github.com/lottman/Remnacust-installer/releases/tag/v1.2.172) |
 
-The base is published official Xray v26.11.9, commit `676eaf66f8f05d4d558ee7a74b4736623d3feeb9`. Provenance: [REMNACUST-UPSTREAM.json](xray/REMNACUST-UPSTREAM.json); see [Core 1.1.20 changes](docs/releases/1.1.20.md). New source in the branch does not mean the published binary has been updated.
+The base is published official Xray v26.11.9, commit `676eaf66f8f05d4d558ee7a74b4736623d3feeb9`. Provenance: [REMNACUST-UPSTREAM.json](xray/REMNACUST-UPSTREAM.json); see [Core 1.1.21 changes](docs/releases/1.1.21.md). New source in the branch does not mean the published binary has been updated.
 
 ## Installation and updates
 
-For a VPS, use the ready components described in the [Node guide](https://github.com/lottman/Remnacust-node). Installer 1.2.171 supports Ubuntu 22.04/24.04/26.04 LTS and Debian 12/13, Linux amd64/arm64. The starting node baseline is 1 CPU and 1 GiB RAM without a capacity guarantee; Node.js and Go are not needed on the host.
+For a VPS, use the ready components described in the [Node guide](https://github.com/lottman/Remnacust-node). Installer 1.2.172 supports Ubuntu 22.04/24.04/26.04 LTS and Debian 12/13, Linux amd64/arm64. The starting node baseline is 1 CPU and 1 GiB RAM without a capacity guarantee; Node.js and Go are not needed on the host.
 
 Core releases include Linux amd64/arm64 binaries and `SHA256SUMS`. For a managed node, select a verified core through the panel or `sudo remnacust manage-node`; do not manually replace a running binary. Updating the panel does not update remote nodes. `sudo remnacust upgrade-node` updates the agent image with its bundled Core, but a separately selected managed core may remain pinned. Check the active version and mode.
 
@@ -34,7 +34,7 @@ Preserve `/opt/remnacust/node/.env`, `SECRET_KEY`, Compose and all private state
 
 ## Features and compatibility
 
-Node 1.1.34 contains two separate binaries: custom Core 1.1.20 and stock Xray v26.11.9. The panel's global mode defaults to custom. Default does not support Remnacust extensions; changing modes checks saved policies and quotas without deleting journals or silently removing limits. The editor uses separate custom and pristine upstream WASM/schema assets; browser validation does not prove a native connection works.
+Node 1.1.35 contains two separate binaries: custom Core 1.1.21 and stock Xray v26.11.9. The panel's global mode defaults to custom. Default does not support Remnacust extensions; changing modes checks saved policies and quotas without deleting journals or silently removing limits. The editor uses separate custom and standard WASM/schema assets with pinned security dependency updates; browser validation does not prove a native connection works.
 
 - Xera HTTP: `network: "xera-http"` and `xeraHttpSettings`; compatible client and server cores are required. Standard XHTTP is a separate transport. [Admission settings, resource limits and observable behavior](docs/XERA-HTTP.md).
 - Host/tag policies, quotas and user/device speed limits. Additional connections do not increase the allocated budget.
@@ -50,6 +50,10 @@ Standard configurations retain legacy compatibility within each client's/core's 
 Existing connections and policies can operate without the panel while access rights and local grants remain valid. Access expiry, remaining applicable USER/HOST/TAG quotas and quota period deadlines continue to limit traffic. A new calendar period without the panel does not create fresh credit.
 
 A day of offline operation requires enough validity time and local credit for traffic and recovery. Restart requires compatible Node/Core versions and persisted configuration, credentials and journals. There is no 24-hour guarantee for every older core or after state loss. [Offline operation requirements](https://github.com/lottman/Remnacust-panel/blob/main/docs/NODE-AUTONOMY.md).
+
+## Core 1.1.21
+
+Fixes Xera/XHTTP memory accounting and stream lifecycle, Browser Dialer, ECH acquisition, TLS certificate rotation and oversized Vision buffers. Updates compatible dependencies while preserving transport formats. [1.1.21](docs/releases/1.1.21.md).
 
 ## Core 1.1.20
 
