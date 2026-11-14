@@ -14,7 +14,7 @@ python3 "$editor_dir/prepare-remnacust.py"
 cd "$editor_dir"
 go run -buildvcs=false tools/schema-types.go ../../xray/infra/conf assets/remnacust-config-types.json
 python3 update-schema.py assets/remnacust-config-types.json "$frontend_dir"
-GOOS=js GOARCH=wasm go build -buildvcs=false -mod=mod -o "$frontend_dir/public/assets/main.wasm" .
+GOOS=js GOARCH=wasm go build -buildvcs=false -mod=readonly -trimpath -o "$frontend_dir/public/assets/main.wasm" .
 cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" "$frontend_dir/public/assets/wasm_exec.js"
 cd "$frontend_dir"
 node verify-editor-assets.mjs

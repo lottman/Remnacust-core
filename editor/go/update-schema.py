@@ -223,6 +223,13 @@ for language in ['', '.cn']:
     name='public/assets/xray.schema'+language+'.json'
     schema=json.loads((ROOT/name).read_text(encoding='utf-8-sig'))
     defs=schema['definitions']; defs.update(definitions)
+    if language == '.cn':
+        localized_adaptive = copy.deepcopy(defs['RemnacustCoreXeraAdaptiveConfig'])
+        localized_adaptive['description'] = '客户端按方向、目标地址和配置版本限制活动 HTTP 请求。stream-one 同时占用两个方向的额度。服务器的会话、内存和 HTTP 限制独立生效。'
+        localized_adaptive['properties']['mode']['description'] = '选择基于实测反馈的调节策略，不改变 HTTP 传输模式。'
+        localized_adaptive['properties']['minStreams']['description'] = '每个方向可用请求额度的下限；不会为此建立空闲请求。'
+        localized_adaptive['properties']['maxStreams']['description'] = '同一目标地址和配置下，每个方向活动 HTTP 请求数的上限；不是 TCP 连接数上限。'
+        defs['RemnacustCoreXeraAdaptiveConfig'] = localized_adaptive
     defs.pop('RemnacustCoreOlcrtcConfig',None)
     stream=defs['StreamSettingsObject']
     merge_props(stream['properties'], definitions['RemnacustCoreStreamConfig']['properties'])

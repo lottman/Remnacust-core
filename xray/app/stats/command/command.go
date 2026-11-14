@@ -39,6 +39,9 @@ func (s *statsServer) GetStats(ctx context.Context, request *GetStatsRequest) (*
 	if request.Reset_ {
 		unlock := s.lockResets()
 		defer unlock()
+		if err := ctx.Err(); err != nil {
+			return nil, status.FromContextError(err).Err()
+		}
 		if strings.HasPrefix(request.Name, "user>>>") || strings.HasPrefix(request.Name, quotausage.Prefix) {
 			if err := s.legacyUserReset(); err != nil {
 				return nil, err
@@ -106,6 +109,9 @@ func (s *statsServer) GetUsersStats(ctx context.Context, request *GetUsersStatsR
 	if request.Reset_ && request.IncludeTraffic {
 		unlock := s.lockResets()
 		defer unlock()
+		if err := ctx.Err(); err != nil {
+			return nil, status.FromContextError(err).Err()
+		}
 		if err := s.legacyUserReset(); err != nil {
 			return nil, err
 		}
@@ -197,6 +203,9 @@ func (s *statsServer) QueryStats(ctx context.Context, request *QueryStatsRequest
 	if request.Reset_ {
 		unlock := s.lockResets()
 		defer unlock()
+		if err := ctx.Err(); err != nil {
+			return nil, status.FromContextError(err).Err()
+		}
 	}
 	userMatch := false
 	s.stats.VisitCounters(func(name string, counter feature_stats.Counter) bool {

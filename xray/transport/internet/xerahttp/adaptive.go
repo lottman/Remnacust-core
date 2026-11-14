@@ -2,13 +2,21 @@ package xerahttp
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"io"
 	"math"
 	"net"
+	"os"
+	"runtime"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
+
+	"github.com/apernet/quic-go"
+	utls "github.com/refraction-networking/utls"
 )
 
 const (
@@ -425,12 +433,45 @@ func (l *adaptiveLease) finish(err error) {
 			d.active--
 			if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, context.Canceled) && !l.rejected.Load() {
 				d.window.failures++
-				d.window.transient++
+				if isAdaptiveCongestionError(err) {
+					d.window.transient++
+				}
 			}
 		}
 		c.signalLocked()
 		c.mu.Unlock()
 	})
+}
+
+func isAdaptiveCongestionError(err error) bool {
+	var certificate *tls.CertificateVerificationError
+	var uCertificate *utls.CertificateVerificationError
+	var roots x509.SystemRootsError
+	if errors.As(err, &certificate) || errors.As(err, &uCertificate) || errors.As(err, &roots) {
+		return false
+	}
+	var transport *quic.TransportError
+	if errors.As(err, &transport) && transport != nil && (transport.ErrorCode.IsCryptoError() || transport.ErrorCode == quic.ProtocolViolation) {
+		return false
+	}
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, os.ErrDeadlineExceeded) || errors.Is(err, syscall.ETIMEDOUT) || errors.Is(err, syscall.ECONNRESET) || errors.Is(err, syscall.ECONNABORTED) || errors.Is(err, syscall.EPIPE) {
+		return true
+	}
+	if runtime.GOOS == "windows" && (errors.Is(err, syscall.Errno(10053)) || errors.Is(err, syscall.Errno(10054)) || errors.Is(err, syscall.Errno(10060))) {
+		return true
+	}
+	var operation *net.OpError
+	if errors.As(err, &operation) && operation != nil && operation.Timeout() {
+		return true
+	}
+	var network net.Error
+	if errors.As(err, &network) && network != nil && network.Timeout() {
+		return true
+	}
+	var idle *quic.IdleTimeoutError
+	var handshake *quic.HandshakeTimeoutError
+	var reset *quic.StatelessResetError
+	return errors.As(err, &idle) || errors.As(err, &handshake) || errors.As(err, &reset)
 }
 
 func (l *adaptiveLease) endRequestBody() {

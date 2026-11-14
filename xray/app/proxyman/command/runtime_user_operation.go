@@ -29,6 +29,10 @@ func (s *handlerServer) applyInboundPersisted(ctx context.Context, handler inbou
 	previous := s.runtimeConfiguration(ctx)
 	barrier := s.s.RuntimeAccess()
 	barrier.Lock()
+	if err := ctx.Err(); err != nil {
+		barrier.Unlock()
+		return status.FromContextError(err).Err()
+	}
 	// A profile-scoped removal revokes streams only after its checkpoint is
 	// durable. The generic operation's node-wide revoke would interrupt sibling
 	// graphs (and would be irreversible if persistence subsequently failed).

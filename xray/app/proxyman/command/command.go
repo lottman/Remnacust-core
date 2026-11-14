@@ -105,6 +105,9 @@ func (s *handlerServer) AddInbound(ctx context.Context, request *AddInboundReque
 	}
 	s.operation.Lock()
 	defer s.operation.Unlock()
+	if err := ctx.Err(); err != nil {
+		return nil, status.FromContextError(err).Err()
+	}
 	if err := core.AddInboundHandler(s.s, request.Inbound); err != nil {
 		return nil, err
 	}
@@ -118,12 +121,18 @@ func (s *handlerServer) RemoveInbound(ctx context.Context, request *RemoveInboun
 	}
 	s.operation.Lock()
 	defer s.operation.Unlock()
+	if err := ctx.Err(); err != nil {
+		return nil, status.FromContextError(err).Err()
+	}
 	return &RemoveInboundResponse{}, s.ihm.RemoveHandler(ctx, request.Tag)
 }
 
 func (s *handlerServer) AlterInbound(ctx context.Context, request *AlterInboundRequest) (*AlterInboundResponse, error) {
 	s.operation.Lock()
 	defer s.operation.Unlock()
+	if err := ctx.Err(); err != nil {
+		return nil, status.FromContextError(err).Err()
+	}
 	if handled, err := s.removeRetiredUserLocked(ctx, request); handled {
 		return &AlterInboundResponse{}, err
 	}
@@ -223,6 +232,9 @@ func (s *handlerServer) GetInboundUsersCount(ctx context.Context, request *GetIn
 }
 
 func (s *handlerServer) AddOutbound(ctx context.Context, request *AddOutboundRequest) (*AddOutboundResponse, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, status.FromContextError(err).Err()
+	}
 	if controller := s.s.RuntimeController(); controller != nil {
 		return &AddOutboundResponse{}, controller.Update(ctx, func(config *core.Config) error {
 			if request.Outbound == nil {
@@ -244,6 +256,9 @@ func (s *handlerServer) AddOutbound(ctx context.Context, request *AddOutboundReq
 }
 
 func (s *handlerServer) RemoveOutbound(ctx context.Context, request *RemoveOutboundRequest) (*RemoveOutboundResponse, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, status.FromContextError(err).Err()
+	}
 	if controller := s.s.RuntimeController(); controller != nil {
 		return &RemoveOutboundResponse{}, controller.Update(ctx, func(config *core.Config) error {
 			for i, existing := range config.Outbound {
@@ -259,6 +274,9 @@ func (s *handlerServer) RemoveOutbound(ctx context.Context, request *RemoveOutbo
 }
 
 func (s *handlerServer) AlterOutbound(ctx context.Context, request *AlterOutboundRequest) (*AlterOutboundResponse, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, status.FromContextError(err).Err()
+	}
 	if s.s.RuntimeController() != nil {
 		return nil, status.Error(codes.Unimplemented, "Replace outbound settings through a configuration reconciliation")
 	}

@@ -97,13 +97,13 @@ jobs:
       - name: Verify native Xera interoperability with the previous published core
         run: |
           set -euo pipefail
-          previous="$RUNNER_TEMP/remnacust-core-1.1.20-linux-amd64"
+          previous="$RUNNER_TEMP/remnacust-core-1.1.21-linux-amd64"
           curl --fail --location --proto '=https' --proto-redir '=https' --max-time 180 --max-filesize 201326592 \
-            https://github.com/lottman/Remnacust-core/releases/download/v1.1.20/remnacust-core-1.1.20-linux-amd64 --output "$previous"
-          printf '%s  %s\n' 974e2e5a75341b5dd42ed69c643e02176b31d2171ef75c4139ab31b3ddb1acbd "$previous" | sha256sum --check --strict
+            https://github.com/lottman/Remnacust-core/releases/download/v1.1.21/remnacust-core-1.1.21-linux-amd64 --output "$previous"
+          printf '%s  %s\n' 01f466f71a63339906d7d99bad297ea0c0363c41a88974a999eab843f08705a3 "$previous" | sha256sum --check --strict
           chmod 755 "$previous"
           python3 ../tests/xera-wire-compat.integration.py --current /tmp/remnacust-xray --previous "$previous" \
-            --previous-sha256 974e2e5a75341b5dd42ed69c643e02176b31d2171ef75c4139ab31b3ddb1acbd
+            --previous-sha256 01f466f71a63339906d7d99bad297ea0c0363c41a88974a999eab843f08705a3
       - run: python3 ../tests/geoip-routing.integration.py /tmp/remnacust-xray
       - run: python3 ../tests/device-revoke.integration.py /tmp/remnacust-xray
       - run: go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
@@ -181,18 +181,22 @@ jobs:
             "$(command -v node)" "$chrome" "$browser_root/playwright/node_modules/playwright" >> "$GITHUB_ENV"
       - name: Require real Chrome and IPv6 browser integration under the race detector
         working-directory: xray
+        env:
+          REMNACUST_REQUIRE_BROWSER_TESTS: '1'
         run: |
           set -euo pipefail
-          go test -race -count=1 -timeout=180s -json -run '^TestBrowserCompatibility' ./transport/internet/browser_dialer | python3 -c '
+          go test -race -count=1 -timeout=180s -json -run '^Test(BrowserCompatibility|AdaptiveBrowserDialerChrome)' ./transport/internet/browser_dialer ./transport/internet/xerahttp | python3 -c '
           import json, sys
-          passed = False
+          required = {"TestBrowserCompatibilityChrome", "TestAdaptiveBrowserDialerChrome"}
+          passed = set()
           skipped = False
           for line in sys.stdin:
               event = json.loads(line)
               print(event.get("Output", ""), end="", flush=True)
-              passed |= event.get("Action") == "pass" and event.get("Test") == "TestBrowserCompatibilityChrome"
+              if event.get("Action") == "pass" and event.get("Test") in required:
+                  passed.add(event["Test"])
               skipped |= event.get("Action") == "skip"
-          if not passed or skipped:
+          if passed != required or skipped:
               sys.exit("Required Chrome integration did not pass without skips")
           '
   windows-transport-cleanup:

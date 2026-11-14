@@ -280,10 +280,12 @@ func Dial(ctx context.Context, dest net.Destination, streamSettings *internet.Me
 		return nil, errors.New("failed to announce session ", session).Base(err)
 	}
 	errors.LogInfo(ctx, "opened session ", session)
-	return newConn(context.Background(), storage,
+	var conn *Conn
+	conn = newConn(context.Background(), storage,
 		uplinkPrefix(session), downlinkPrefix(session), p, func() {
-			storage.Close()
-		}), nil
+			closeWALStorage(conn, storage, session)
+		})
+	return watchWAL(conn), nil
 }
 
 func dialSegments(ctx context.Context, dest net.Destination, streamSettings *internet.MemoryStreamConfig) (stat.Connection, error) {
@@ -313,10 +315,96 @@ func dialSegments(ctx context.Context, dest net.Destination, streamSettings *int
 		return nil, errors.New("failed to announce session ", session).Base(err)
 	}
 	errors.LogInfo(ctx, "opened session ", session)
-	return newConn(context.Background(), storage,
+	var conn *Conn
+	conn = newConn(context.Background(), storage,
 		uplinkPrefix(session), downlinkPrefix(session), p, func() {
-			storage.Close()
-		}), nil
+			closeWALStorage(conn, storage, session)
+		})
+	return watchWAL(conn), nil
+}
+
+func watchWAL(conn *Conn) *Conn {
+	writer := conn.writer.(*walWriter)
+	conn.workers.Add(1)
+	go func() {
+		failed := false
+		select {
+		case <-conn.ctx.Done():
+		case <-writer.done:
+			failed = writer.failure() != nil
+		case <-writer.failed:
+			failed = true
+		}
+		if failed {
+			conn.cancel()
+		}
+		conn.workers.Done()
+		if failed {
+			conn.Close()
+		}
+	}()
+	return conn
+}
+
+func closeWALStorage(conn *Conn, storage Storage, session string) error {
+	var cleanupErr error
+	if writer, ok := conn.writer.(*walWriter); ok && writer.failure() != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), closeBudget)
+		cleanupErr = collectWALSession(ctx, storage, session)
+		if cleanupErr != nil {
+			errors.LogWarningInner(ctx, cleanupErr, "failed to collect the closed WAL session ", session)
+		}
+		cancel()
+	}
+	storage.Close()
+	return cleanupErr
+}
+
+func collectWALSession(ctx context.Context, storage Storage, session string) error {
+	if session == "" {
+		return errors.New("invalid WAL session ID")
+	}
+	for _, ch := range session {
+		if !(ch >= 'a' && ch <= 'z' || ch >= 'A' && ch <= 'Z' || ch >= '0' && ch <= '9' || ch == '-' || ch == '_') {
+			return errors.New("invalid WAL session ID")
+		}
+	}
+	root := sessionPrefix(session)
+	children, err := storage.List(ctx, root)
+	if err != nil {
+		return err
+	}
+	var first error
+	for _, child := range children {
+		if child.Name != uplinkDir && child.Name != downlinkDir {
+			first = errors.New("unexpected object in closed WAL session")
+		}
+	}
+	remaining := 2*maxConcurrency + 2
+	for _, direction := range []string{uplinkDir, downlinkDir} {
+		prefix := root + "/" + direction
+		entries, err := storage.List(ctx, prefix)
+		if err != nil {
+			return err
+		}
+		for _, entry := range entries {
+			if _, ok := parseEntry(entry.Name); !ok {
+				first = errors.New("unexpected object in closed WAL session")
+				continue
+			}
+			if remaining == 0 {
+				return errors.New("closed WAL session needs another cleanup batch")
+			}
+			remaining--
+			if err := storage.Delete(ctx, prefix+"/"+entry.Name); err != nil {
+				return err
+			}
+		}
+	}
+	if first != nil {
+		return first
+	}
+	return storage.Delete(ctx, root)
 }
 
 type Listener struct {
@@ -337,6 +425,7 @@ type Listener struct {
 	stopping       bool
 	closed         bool
 	connections    map[*Conn]struct{}
+	walCleanup     map[string]bool
 	closeOnce      sync.Once
 	closeErr       error
 }
@@ -547,10 +636,23 @@ func (l *Listener) newSessionConn(logCtx context.Context, session string, announ
 	storage := sessionStorage(l.storage)
 	var conn *Conn
 	onClose := func() {
-		storage.Close()
+		writer, wal := conn.writer.(*walWriter)
+		failed := wal && writer.failure() != nil
 		l.mu.Lock()
 		delete(l.active, session)
+		if failed {
+			if l.walCleanup == nil {
+				l.walCleanup = make(map[string]bool)
+			}
+			l.walCleanup[session] = true
+		}
+		l.mu.Unlock()
+		err := closeWALStorage(conn, storage, session)
+		l.mu.Lock()
 		delete(l.connections, conn)
+		if failed && err == nil {
+			delete(l.walCleanup, session)
+		}
 		l.mu.Unlock()
 	}
 	if slots, ok := storage.(slotStore); ok {
@@ -567,6 +669,9 @@ func (l *Listener) newSessionConn(logCtx context.Context, session string, announ
 		l.connections = make(map[*Conn]struct{})
 	}
 	l.connections[conn] = struct{}{}
+	if _, ok := conn.writer.(*walWriter); ok {
+		watchWAL(conn)
+	}
 	return conn
 }
 
@@ -596,8 +701,12 @@ func (l *Listener) collect() error {
 	l.mu.Lock()
 	present := make(map[string]bool, len(sessions))
 	for _, listed := range sessions {
-		session := listed.Name
+		present[listed.Name] = true
+	}
+	for session := range l.walCleanup {
 		present[session] = true
+	}
+	for session := range present {
 		if l.active[session] {
 			delete(l.idleSince, session)
 			continue
@@ -626,11 +735,34 @@ func (l *Listener) collect() error {
 
 	var first error
 	for _, session := range expired {
-		if err := l.drop(sessionPrefix(session)); err != nil && first == nil {
+		l.mu.Lock()
+		wal := l.walCleanup[session]
+		l.mu.Unlock()
+		var err error
+		if wal {
+			err = l.collectWAL(session)
+		} else {
+			err = l.drop(sessionPrefix(session))
+		}
+		if err != nil && first == nil {
 			first = err
 		}
 	}
 	return first
+}
+
+func (l *Listener) collectWAL(session string) error {
+	if !l.beginStorage() {
+		return context.Canceled
+	}
+	defer l.workers.Done()
+	if err := collectWALSession(l.ctx, l.storage, session); err != nil {
+		return err
+	}
+	l.mu.Lock()
+	delete(l.walCleanup, session)
+	l.mu.Unlock()
+	return nil
 }
 
 func (l *Listener) Addr() net.Addr {

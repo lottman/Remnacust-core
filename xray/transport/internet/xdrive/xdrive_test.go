@@ -653,7 +653,7 @@ func runSessions(t *testing.T, streamSettings *internet.MemoryStreamConfig, n in
 
 // sessionEnd is the session and end of it that a request to the fake store
 // comes from, or "" for the listener and the token
-func sessionEnd(r *http.Request) string {
+func sessionEnd(r *http.Request) (string, string) {
 	name := strings.TrimPrefix(r.URL.Path, "/folder/")
 	if r.Method == "PROPFIND" {
 		name = r.URL.Query().Get("prefix")
@@ -662,16 +662,18 @@ func sessionEnd(r *http.Request) string {
 	parts := strings.Split(name, flatSeparator)
 	switch {
 	case len(parts) > 2 && parts[0] == streamsDir:
-		// each end writes its own direction and reads the other
-		if (parts[2] == uplinkDir) == write {
-			return parts[1] + " client"
+		if !write {
+			return parts[1], ""
 		}
-		return parts[1] + " server"
+		if parts[2] == uplinkDir {
+			return parts[1], parts[1] + " client"
+		}
+		return parts[1], parts[1] + " server"
 	case len(parts) == 2 && parts[0] == sessionsDir && write:
 		_, session, _ := strings.Cut(parts[1], "-")
-		return session + " client"
+		return session, session + " client"
 	}
-	return ""
+	return "", ""
 }
 
 // with "maxConcurrency" 1 every end of a session has a connection of its own,
@@ -695,16 +697,25 @@ func TestXmuxConnections(t *testing.T) {
 
 			store := &fakeStore{objects: make(map[string][]byte), needAuth: "Bearer tok-fake"}
 			var (
-				mu    sync.Mutex
-				conns = make(map[string]map[string]bool)
+				mu       sync.Mutex
+				conns    = make(map[string]map[string]bool)
+				requests = make(map[string]map[string]bool)
 			)
 			server := newTLSServer(t, &gotls.Config{NextProtos: chromeALPN}, func(w http.ResponseWriter, r *http.Request) {
-				end := sessionEnd(r)
+				session, end := sessionEnd(r)
 				mu.Lock()
-				if conns[end] == nil {
-					conns[end] = make(map[string]bool)
+				if session != "" {
+					if requests[session] == nil {
+						requests[session] = make(map[string]bool)
+					}
+					requests[session][r.RemoteAddr] = true
 				}
-				conns[end][r.RemoteAddr] = true
+				if end != "" || session == "" {
+					if conns[end] == nil {
+						conns[end] = make(map[string]bool)
+					}
+					conns[end][r.RemoteAddr] = true
+				}
 				mu.Unlock()
 				store.handle(w, r)
 			})
@@ -721,7 +732,9 @@ func TestXmuxConnections(t *testing.T) {
 			runSessions(t, settings, n)
 			mu.Lock()
 			first := conns
+			firstRequests := requests
 			conns = make(map[string]map[string]bool)
+			requests = make(map[string]map[string]bool)
 			mu.Unlock()
 			dialed := server.conns.Load()
 			runSessions(t, settings, n)
@@ -730,6 +743,28 @@ func TestXmuxConnections(t *testing.T) {
 			}
 
 			owner := make(map[string]string)
+			if len(first)-1 != 2*n {
+				t.Errorf("had %d endpoint leases, want %d", len(first)-1, 2*n)
+			}
+			if len(firstRequests) != n {
+				t.Errorf("had %d sessions, want %d", len(firstRequests), n)
+			}
+			for session, addrs := range firstRequests {
+				allowed := make(map[string]bool)
+				for _, end := range []string{session + " client", session + " server"} {
+					for addr := range first[end] {
+						allowed[addr] = true
+					}
+				}
+				if len(allowed) < 1 || len(allowed) > 2 || !c.shared && len(allowed) != 2 {
+					t.Errorf("%s had %d endpoint connections", session, len(allowed))
+				}
+				for addr := range addrs {
+					if !allowed[addr] {
+						t.Errorf("%s made a request outside its endpoint connections: %s", session, addr)
+					}
+				}
+			}
 			for end, addrs := range first {
 				if end == "" {
 					continue

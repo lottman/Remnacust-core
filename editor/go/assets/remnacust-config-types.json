@@ -3690,6 +3690,21 @@
     },
     "type": "object"
   },
+  "RemnacustCoreXeraAdaptiveConfig": {
+    "additionalProperties": true,
+    "properties": {
+      "maxStreams": {
+        "type": "integer"
+      },
+      "minStreams": {
+        "type": "integer"
+      },
+      "mode": {
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
   "RemnacustCoreXeraDownlinkPaddingConfig": {
     "additionalProperties": true,
     "properties": {
@@ -3726,6 +3741,9 @@
   "RemnacustCoreXeraHTTPConfig": {
     "additionalProperties": true,
     "properties": {
+      "adaptive": {
+        "$ref": "#/definitions/RemnacustCoreXeraAdaptiveConfig"
+      },
       "customDownlinkPadding": {
         "$ref": "#/definitions/RemnacustCoreXeraDownlinkPaddingConfig"
       },

@@ -23,6 +23,8 @@ PAYLOAD_SIZE = 256 * 1024
 MODES = ('packet-up', 'stream-up', 'stream-one', 'stream-auto')
 ALPN = {'h1': 'http/1.1', 'h2': 'h2', 'h3': 'h3'}
 NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
+CURRENT_VERSION = (Path(__file__).resolve().parents[1] / 'VERSION').read_text().strip()
+PREVIOUS_VERSION = '1.1.21'
 
 
 def digest(filename):
@@ -287,9 +289,11 @@ def stream_config(mode, security, alpn, cert, key, keys, decoy, server):
 
 
 def run_case(root, binaries, host, family, echo_port, cert, key, security,
-             http_version, mode, reverse, keys, decoy, timeout, overall_deadline):
+             http_version, mode, reverse, keys, decoy, timeout, overall_deadline, adaptive=None):
     direction = 'current-client_previous-server' if reverse else 'previous-client_current-server'
     label = f'{"ipv6" if family == socket.AF_INET6 else "ipv4"}-{security}-{http_version}-{mode}-{direction}'
+    if adaptive:
+        label += f'-adaptive-{adaptive}'
     directory = root / label
     directory.mkdir()
     deadline = min(overall_deadline, time.monotonic() + timeout)
@@ -317,6 +321,12 @@ def run_case(root, binaries, host, family, echo_port, cert, key, security,
             'streamSettings': stream_config(mode, security, http_version, cert, key, keys, decoy, False)}],
     }
     client_binary, server_binary = binaries if reverse else binaries[::-1]
+    if adaptive:
+        if not reverse:
+            raise AssertionError('Adaptive settings require the current client')
+        client_config['outbounds'][0]['streamSettings']['xeraHttpSettings']['adaptive'] = {
+            'mode': adaptive, 'minStreams': 1, 'maxStreams': 2,
+        }
     try:
         with contextlib.ExitStack() as stack:
             server = stack.enter_context(CoreProcess(server_binary, server_config, directory, 'server'))
@@ -354,15 +364,15 @@ def main():
     if not args.openssl:
         parser.error('OpenSSL CLI is required')
     try:
-        current, current_digest = verify_binary(args.current, '1.1.21')
-        previous, previous_digest = verify_binary(args.previous, '1.1.20')
+        current, current_digest = verify_binary(args.current, CURRENT_VERSION)
+        previous, previous_digest = verify_binary(args.previous, PREVIOUS_VERSION)
     except (OSError, RuntimeError, subprocess.SubprocessError) as error:
         parser.error(str(error))
     if args.previous_sha256 and (not re.fullmatch(r'[0-9a-fA-F]{64}', args.previous_sha256)
                                 or previous_digest != args.previous_sha256.lower()):
         parser.error('previous binary SHA256 differs')
-    print(f'CURRENT 1.1.21 sha256={current_digest}', flush=True)
-    print(f'PREVIOUS 1.1.20 sha256={previous_digest}', flush=True)
+    print(f'CURRENT {CURRENT_VERSION} sha256={current_digest}', flush=True)
+    print(f'PREVIOUS {PREVIOUS_VERSION} sha256={previous_digest}', flush=True)
     overall_deadline = time.monotonic() + args.total_timeout
     families = [('127.0.0.1', socket.AF_INET)]
     if ipv6_available(os.environ.get('REMNACUST_REQUIRE_IPV6_TESTS') == '1'):
@@ -401,6 +411,15 @@ def main():
                                                 keys, decoy, args.timeout, overall_deadline)
                                 passed += int(good)
                                 failed += int(not good)
+                    adaptive_cases = (('h2', 'packet-up'), ('h3', 'stream-up')) if security == 'tls' else (('h2', 'stream-auto'),)
+                    for adaptive in ('balanced', 'low-latency', 'unstable-network'):
+                        for http_version, mode in adaptive_cases:
+                            remaining(overall_deadline)
+                            good = run_case(root, (current, previous), host, family, echo_port,
+                                            cert, key, security, http_version, mode, True,
+                                            keys, decoy, args.timeout, overall_deadline, adaptive)
+                            passed += int(good)
+                            failed += int(not good)
     if digest(current) != current_digest or digest(previous) != previous_digest:
         raise RuntimeError('a binary changed during the interoperability matrix')
     print(f'RESULT passed={passed} failed={failed} families={len(families)} bytes_per_case={PAYLOAD_SIZE}', flush=True)

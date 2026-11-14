@@ -12,7 +12,8 @@
     "xera-destination-rules-v1",
     "authenticated device connection revocation",
     "standalone olcRTC core support",
-    "remnacust-device-speed-v1"
+    "remnacust-device-speed-v1",
+    "XERA adaptive admission budgets"
   ],
   "compatibility": [
     "legacy finalmask.quicParams.udpHop",
@@ -20,9 +21,9 @@
     "legacy XDNS name/type/settings.addr",
     "legacy XDRIVE outbound segment announcements"
   ],
-  "version": "1.1.21",
+  "version": "1.1.22",
   "upstreamPatches": [],
-  "checkedAt": "2026-11-14",
+  "checkedAt": "2026-11-15",
   "pendingRelease": false,
   "upstreamRef": "refs/tags/v26.11.9",
   "updatePolicy": "published-official-releases-only",

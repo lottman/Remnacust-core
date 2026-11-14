@@ -40,7 +40,7 @@ jobs:
           test "$TAG" = "v$version"
           mkdir output
           filename="remnacust-core-$version-linux-$ARCH"
-          (cd xray && CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X github.com/xtls/xray-core/core.build=Remnacust-$version" -o "../output/$filename" ./main)
+          (cd xray && CGO_ENABLED=0 go build -mod=readonly -trimpath -ldflags "-s -w -X github.com/xtls/xray-core/core.build=Remnacust-$version" -o "../output/$filename" ./main)
           python3 tests/version.test.py "$PWD/output/$filename"
           printf '{"outbounds":[{"protocol":"freedom","tag":"direct"}]}' > output/check.json
           "output/$filename" run -test -config output/check.json
@@ -81,3 +81,8 @@ jobs:
           fi
           gh release create "$TAG" --verify-tag --draft --title "$version" --notes-file "docs/releases/$version.md"
           gh release upload "$TAG" "output/remnacust-core-$version-linux-amd64" "output/remnacust-core-$version-linux-arm64" output/SHA256SUMS
+          verify_dir=$(mktemp -d "$RUNNER_TEMP/core-release.XXXXXXXX")
+          gh release download "$TAG" --dir "$verify_dir" --pattern 'remnacust-core-*' --pattern SHA256SUMS
+          cmp output/SHA256SUMS "$verify_dir/SHA256SUMS"
+          (cd "$verify_dir" && sha256sum --check --strict SHA256SUMS)
+          gh release edit "$TAG" --draft=false --latest
