@@ -61,12 +61,28 @@ func TestRuntimeUserQuotaIsolated(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "host-policy.json"), document, 0600); err != nil {
 		t.Fatal(err)
 	}
-	apiPort, port, destination := availableRuntimePort(t), availableRuntimePort(t), runtimeEcho(t, "")
+	destination := runtimeEcho(t, "")
+	reservations := make([]net.Listener, 0, 2)
+	for range 2 {
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { listener.Close() })
+		reservations = append(reservations, listener)
+	}
+	apiPort := reservations[0].Addr().(*net.TCPAddr).Port
+	port := reservations[1].Addr().(*net.TCPAddr).Port
 	config := runtimeBuildJSON(t, map[string]any{
 		"log": map[string]any{"loglevel": "none"}, "api": map[string]any{"tag": "PRIVATE_API", "listen": fmt.Sprint("127.0.0.1:", apiPort), "services": []string{"HandlerService"}},
 		"inbounds":  []any{map[string]any{"tag": "PORT-A", "listen": "127.0.0.1", "port": port, "protocol": "vless", "settings": map[string]any{"decryption": "none", "clients": []any{map[string]any{"id": runtimeTestUUID, "email": "123"}}}}},
 		"outbounds": []any{map[string]any{"protocol": "freedom", "settings": map[string]any{"redirect": fmt.Sprint("127.0.0.1:", destination), "finalRules": []any{map[string]any{"action": "allow", "ip": []string{"127.0.0.1/32"}}}}}},
 	})
+	for _, listener := range reservations {
+		if err := listener.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}
 	server, err := core.New(config)
 	if err != nil {
 		t.Fatal(err)
