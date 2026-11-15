@@ -79,7 +79,17 @@ jobs:
             echo 'Release already exists; published binaries must not be replaced.' >&2
             exit 1
           fi
-          gh release create "$TAG" --verify-tag --draft --title "$version" --notes-file "docs/releases/$version.md"
+          notes=$(mktemp "$RUNNER_TEMP/core-notes.XXXXXXXX.md")
+          python3 - "$TAG" "$notes" <<'PY'
+          import os, re, sys
+          from pathlib import Path
+          tag, output = sys.argv[1:]
+          body = Path('docs/releases/' + tag.removeprefix('v') + '.md').read_text(encoding='utf-8')
+          base = 'https://github.com/' + os.environ['GITHUB_REPOSITORY'] + '/blob/' + tag + '/docs/'
+          body = re.sub(r'\]\(\.\./([^)\s]+)\)', lambda match: '](' + base + match[1] + ')', body)
+          Path(output).write_text(body, encoding='utf-8')
+          PY
+          gh release create "$TAG" --verify-tag --draft --title "$version" --notes-file "$notes"
           gh release upload "$TAG" "output/remnacust-core-$version-linux-amd64" "output/remnacust-core-$version-linux-arm64" output/SHA256SUMS
           verify_dir=$(mktemp -d "$RUNNER_TEMP/core-release.XXXXXXXX")
           gh release download "$TAG" --dir "$verify_dir" --pattern 'remnacust-core-*' --pattern SHA256SUMS
